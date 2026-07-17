@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SubGlass</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <div class="sidebar">
+    <div class="logo">
+      <svg class="logo-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#4F8EF7"/>
+            <stop offset="100%" stop-color="#8B5CF6"/>
+          </linearGradient>
+          <linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#00D4FF"/>
+            <stop offset="100%" stop-color="#4F8EF7"/>
+          </linearGradient>
+        </defs>
+        <path d="M13 30c-5 0-9-3.8-9-8.5S8 13 13 13c.6 0 1.1 0 1.6.1C16.3 8.8 20.6 6 25.5 6c6.5 0 11.8 4.9 12.4 11.2 4.1.9 7.1 4.4 7.1 8.6 0 4.9-4.2 9.2-9.4 9.2H13z" fill="url(#lg1)" opacity="0.9"/>
+        <path d="M24 20l7 5-2.7 9.5H19.7L17 25z" fill="url(#lg2)" opacity="0.95"/>
+      </svg>
+      SubGlass
+    </div>
+
+    <div class="menu">
+      <button data-view="dashboard" class="active">🏠 Dashboard</button>
+      <button data-view="import">📥 导入订阅</button>
+      <button data-view="showcase">📡 我的订阅</button>
+      <button data-view="nodes">🧩 节点管理</button>
+      <button data-view="export">📤 导出配置</button>
+      <button data-view="settings">⚙ 设置</button>
+    </div>
+
+    <div class="sidebar-footer">
+      当前方案：<span id="sidebarProfileName">未创建</span><br/>
+      节点池：<span id="sidebarPoolCount">-</span> · 已选：<span id="sidebarSelectedCount">-</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Dashboard -->
+    <section class="tabs-view active" data-view="dashboard">
+      <div class="header">
+        <h2>Dashboard</h2>
+      </div>
+      <div class="cards">
+        <div class="card"><h3>节点池总数</h3><h1 id="statPool">0</h1></div>
+        <div class="card"><h3>已选择</h3><h1 id="statSelected">0</h1></div>
+        <div class="card"><h3>上游订阅</h3><h1 id="statUpstreams">0</h1></div>
+        <div class="card"><h3>已生成格式</h3><h1 id="statTargets">0</h1></div>
+      </div>
+      <div class="section">
+        <div class="panel">
+          <h3 class="section-title">快速开始</h3>
+          <p class="helper-text">
+            1. 在「设置」中填入 ADMIN_TOKEN 并创建订阅方案 &nbsp;→&nbsp;
+            2. 在「导入订阅」中添加上游链接 &nbsp;→&nbsp;
+            3. 在「节点管理」中勾选/改名节点 &nbsp;→&nbsp;
+            4. 在「我的订阅」中扫码或复制生成的可更新订阅链接
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 其他视图... (省略详细内容) -->
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="vendor/qrcode.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
