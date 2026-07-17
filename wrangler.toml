@@ -1,0 +1,17 @@
+name = "subglass"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+[[kv_namespaces]]
+binding = "SUBGLASS_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# 注意：ADMIN_TOKEN 不在这里声明。
+# - 本地开发：在项目根目录建一个 .dev.vars 文件写 ADMIN_TOKEN=xxx（已加入 .gitignore，不会被提交）
+# - 线上部署：在 Cloudflare 网页 Dashboard 的 Worker → Settings → Variables and Secrets 里手动添加，
+#   类型选 "Encrypt"，全程不会出现在代码仓库或 wrangler.toml 中。
