@@ -90,9 +90,13 @@ async function handleImport(req: Request): Promise<Response> {
     } catch (e) {
       return errorJson((e as Error).message, 400);
     }
+    if (!/^https?:/i.test(body.url)) {
+      raw = body.url;
+    } else {
     const resp = await fetch(body.url, { headers: { "User-Agent": "SubGlass/1.0" } });
     if (!resp.ok) return errorJson(`拉取上游失败: HTTP ${resp.status}`, 502);
     raw = await resp.text();
+    }
   } else if (body.text) {
     raw = body.text;
   } else {

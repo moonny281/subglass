@@ -54,6 +54,9 @@ async function sha256Hex(input: string): Promise<string> {
 export async function fetchUpstreamCached(env: Env, url: string): Promise<string> {
   assertSafeUpstreamUrl(url);
 
+  // 分享链接本身就是节点内容，不需要通过 fetch 拉取。
+  if (!/^https?:/i.test(url)) return url;
+
   const cacheKey = CACHE_PREFIX + (await sha256Hex(url));
   const cached = await env.SUBGLASS_KV.get(cacheKey);
   if (cached !== null) return cached;
