@@ -1,0 +1,5 @@
+# 本地开发用，复制这个文件为 .dev.vars 并填入真实值
+# .dev.vars 已经在 .gitignore 里，不会被提交到仓库
+# 线上部署时不要用这个文件，去 Cloudflare Dashboard 的 Variables and Secrets 里手动加密填写
+
+ADMIN_TOKEN=your-local-dev-token-here

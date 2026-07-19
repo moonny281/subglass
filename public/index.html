@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SubGlass</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="mobile-topbar">
+    <div class="logo">
+      <svg class="logo-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="lg1m" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#4F8EF7"/>
+            <stop offset="100%" stop-color="#8B5CF6"/>
+          </linearGradient>
+          <linearGradient id="lg2m" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#00D4FF"/>
+            <stop offset="100%" stop-color="#4F8EF7"/>
+          </linearGradient>
+        </defs>
+        <path d="M13 30c-5 0-9-3.8-9-8.5S8 13 13 13c.6 0 1.1 0 1.6.1C16.3 8.8 20.6 6 25.5 6c6.5 0 11.8 4.9 12.4 11.2 4.1.9 7.1 4.4 7.1 8.6 0 4.9-4.2 9.2-9.4 9.2H13z" fill="url(#lg1m)" opacity="0.9"/>
+        <path d="M24 20l7 5-2.7 9.5H19.7L17 25z" fill="url(#lg2m)" opacity="0.95"/>
+      </svg>
+      SubGlass
+    </div>
+    <button class="hamburger" id="btnOpenSheet" aria-label="打开菜单">☰</button>
+  </div>
+
+  <div class="sheet-scrim" id="sheetScrim"></div>
+  <div class="sheet" id="sheet">
+    <div class="sheet-handle"></div>
+    <div class="menu">
+      <button data-view="dashboard">🏠 Dashboard</button>
+      <button data-view="import">📥 导入订阅</button>
+      <button data-view="showcase">📡 我的订阅</button>
+      <button data-view="nodes">🧩 节点管理</button>
+      <button data-view="export">📤 导出配置</button>
+      <button data-view="settings">⚙ 设置</button>
+    </div>
+  </div>
+
+  <div class="app">
+
+  <div class="sidebar">
+    <div class="logo">
+      <svg class="logo-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#4F8EF7"/>
+            <stop offset="100%" stop-color="#8B5CF6"/>
+          </linearGradient>
+          <linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#00D4FF"/>
+            <stop offset="100%" stop-color="#4F8EF7"/>
+          </linearGradient>
+        </defs>
+        <path d="M13 30c-5 0-9-3.8-9-8.5S8 13 13 13c.6 0 1.1 0 1.6.1C16.3 8.8 20.6 6 25.5 6c6.5 0 11.8 4.9 12.4 11.2 4.1.9 7.1 4.4 7.1 8.6 0 4.9-4.2 9.2-9.4 9.2H13z" fill="url(#lg1)" opacity="0.9"/>
+        <path d="M24 20l7 5-2.7 9.5H19.7L17 25z" fill="url(#lg2)" opacity="0.95"/>
+      </svg>
+      SubGlass
+    </div>
+
+    <div class="menu">
+      <button data-view="dashboard" class="active">🏠 Dashboard</button>
+      <button data-view="import">📥 导入订阅</button>
+      <button data-view="showcase">📡 我的订阅</button>
+      <button data-view="nodes">🧩 节点管理</button>
+      <button data-view="export">📤 导出配置</button>
+      <button data-view="settings">⚙ 设置</button>
+    </div>
+
+    <div class="sidebar-footer">
+      当前方案：<span id="sidebarProfileName">未创建</span><br/>
+      节点池：<span id="sidebarPoolCount">-</span> · 已选：<span id="sidebarSelectedCount">-</span>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- Dashboard -->
+    <section class="tabs-view active" data-view="dashboard">
+      <div class="header">
+        <h2>Dashboard</h2>
+      </div>
+      <div class="cards">
+        <div class="card"><h3>节点池总数</h3><h1 id="statPool">0</h1></div>
+        <div class="card"><h3>已选择</h3><h1 id="statSelected">0</h1></div>
+        <div class="card"><h3>上游订阅</h3><h1 id="statUpstreams">0</h1></div>
+        <div class="card"><h3>已生成格式</h3><h1 id="statTargets">0</h1></div>
+      </div>
+
+      <div class="section">
+        <div class="panel">
+          <h3 class="section-title">快速开始</h3>
+          <p class="helper-text">
+            1. 在「设置」中填入 ADMIN_TOKEN 并创建订阅方案 &nbsp;→&nbsp;
+            2. 在「导入订阅」中添加上游链接 &nbsp;→&nbsp;
+            3. 在「节点管理」中勾选/改名节点 &nbsp;→&nbsp;
+            4. 在「我的订阅」中扫码或复制生成的可更新订阅链接
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 导入订阅 -->
+    <section class="tabs-view" data-view="import">
+      <div class="header"><h2>导入订阅</h2></div>
+
+      <div class="panel">
+        <h3 class="section-title">添加上游订阅链接（持久化，客户端每次刷新都会重新拉取）</h3>
+        <div class="row">
+          <input class="input" id="upstreamLabel" placeholder="备注名，如：机场A" />
+          <input class="input" id="upstreamUrl" placeholder="https://example.com/sub" />
+          <button class="btn" id="btnAddUpstream">拉取并添加</button>
+        </div>
+        <div class="upstream-list" id="upstreamList"></div>
+      </div>
+
+      <div class="section panel">
+        <h3 class="section-title">粘贴内容快速预览（不会持久化，仅用于确认格式能否解析）</h3>
+        <textarea class="input" id="pasteText" rows="6" style="width:100%;resize:vertical;" placeholder="粘贴 clash yaml / sing-box json / vmess,vless,trojan,ss,hysteria2 分享链接，一行一个"></textarea>
+        <div class="row" style="margin-top:14px;">
+          <button class="btn secondary" id="btnPreviewPaste">预览解析</button>
+        </div>
+        <div id="pastePreviewResult" class="helper-text"></div>
+      </div>
+    </section>
+
+    <!-- 节点管理 -->
+    <section class="tabs-view" data-view="nodes">
+      <div class="header">
+        <h2>节点管理</h2>
+        <input class="search" id="nodeSearch" placeholder="搜索节点名称/服务器">
+      </div>
+      <div class="row">
+        <button class="btn secondary small" id="btnSelectAll">全选</button>
+        <button class="btn secondary small" id="btnSelectNone">全不选</button>
+        <button class="btn small" id="btnSaveSelection" style="flex:0 0 auto;">保存勾选与改名</button>
+      </div>
+      <div class="nodes" id="nodeGrid"></div>
+      <div class="empty-hint" id="nodesEmptyHint" style="display:none;">节点池为空，先去「导入订阅」添加上游链接</div>
+    </section>
+
+    <!-- 我的订阅 / 展示页 -->
+    <section class="tabs-view" data-view="showcase">
+      <div class="header"><h2>我的订阅</h2></div>
+      <div class="nodes" id="showcaseGrid"></div>
+      <div class="empty-hint" id="showcaseEmptyHint" style="display:none;">还没有生成过订阅链接，先在「节点管理」勾选节点</div>
+    </section>
+
+    <!-- 导出配置 -->
+    <section class="tabs-view" data-view="export">
+      <div class="header"><h2>导出配置</h2></div>
+      <div class="panel">
+        <h3 class="section-title">直接下载配置文件</h3>
+        <div class="link-list" id="exportList"></div>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="tabs-view" data-view="settings">
+      <div class="header"><h2>设置</h2></div>
+      <div class="panel">
+        <h3 class="section-title">登录</h3>
+        <p class="helper-text" id="loginStatus">未登录</p>
+        <div class="row" id="loginRow">
+          <input class="input" id="adminToken" type="password" placeholder="ADMIN_TOKEN" autocomplete="off" />
+          <button class="btn" id="btnLogin">登录</button>
+        </div>
+        <div class="row" id="loggedInRow" style="display:none;">
+          <button class="btn secondary" id="btnLogout">退出登录</button>
+        </div>
+        <p class="helper-text">
+          登录后浏览器只会保存一个24小时有效期的会话凭证（HttpOnly Cookie，网页脚本无法读取），
+          不会长期保存 ADMIN_TOKEN 本身。会话过期后需要重新输入令牌登录。
+        </p>
+      </div>
+
+      <div class="section panel">
+        <h3 class="section-title">订阅方案</h3>
+        <div class="row">
+          <input class="input" id="profileName" placeholder="方案名称，如：我的订阅" />
+          <button class="btn" id="btnCreateProfile">新建方案</button>
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <input class="input" id="profileIdInput" placeholder="或粘贴已有方案ID加载" />
+          <button class="btn secondary" id="btnLoadProfile">加载方案</button>
+        </div>
+        <p class="helper-text" id="currentProfileInfo"></p>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="vendor/qrcode.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
