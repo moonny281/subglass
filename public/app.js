@@ -217,30 +217,21 @@ function switchView(name) {
 
   target.classList.add("active");
   target.style.opacity = "0";
-  target.style.transform = "translate3d(0, 18px, 0) scale(.985)";
   target.style.pointerEvents = "none";
   current.style.pointerEvents = "none";
 
-  const outgoing = animate(
-    current,
-    { opacity: 0, y: -10, scale: 0.99 },
-    { type: "spring", bounce: 0.08, duration: 0.34 },
-  );
-  const incoming = animate(
-    target,
-    { opacity: 1, y: 0, scale: 1 },
-    { type: "spring", bounce: 0.22, duration: 0.48 },
-  );
+  // 商务风格：纯交叉淡出淡入，不做位移/缩放。退出用加速曲线（走得干脆），
+  // 进入用减速曲线（停得稳），离开比进入略快，避免中间出现"两块内容都很淡"的空窗感。
+  const outgoing = animate(current, { opacity: 0 }, { duration: 0.16, easing: [0.4, 0, 1, 1] });
+  const incoming = animate(target, { opacity: 1 }, { duration: 0.22, easing: [0, 0, 0.2, 1] });
   viewAnimations = [outgoing, incoming];
 
   Promise.all([outgoing, incoming]).then(() => {
     if (switchToken !== viewSwitchToken) return;
     current.classList.remove("active");
     current.style.opacity = "";
-    current.style.transform = "";
     current.style.pointerEvents = "";
     target.style.opacity = "";
-    target.style.transform = "";
     target.style.pointerEvents = "";
     viewAnimations = [];
   });
