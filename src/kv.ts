@@ -19,12 +19,21 @@ export async function deleteProfile(env: Env, id: string): Promise<void> {
   await env.SUBGLASS_KV.delete(PROFILE_PREFIX + id);
 }
 
-/** 列出所有 profile（后台展示页用，个人项目量级下直接 list 即可，无需分页） */
+/** 列出所有 profile（后台展示页用）。KV list 单次最多返回1000条，这里循环游标直到取完，避免数据量增长后静默丢失 */
 export async function listProfiles(env: Env): Promise<Profile[]> {
-  const { keys } = await env.SUBGLASS_KV.list({ prefix: PROFILE_PREFIX });
+  const keyNames: string[] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await env.SUBGLASS_KV.list({ prefix: PROFILE_PREFIX, cursor });
+    keyNames.push(...page.keys.map((k) => k.name));
+    if (page.list_complete) break;
+    cursor = page.cursor;
+    if (!cursor) break;
+  }
+
   const profiles = await Promise.all(
-    keys.map(async (k) => {
-      const raw = await env.SUBGLASS_KV.get(k.name);
+    keyNames.map(async (name) => {
+      const raw = await env.SUBGLASS_KV.get(name);
       return raw ? (JSON.parse(raw) as Profile) : null;
     }),
   );

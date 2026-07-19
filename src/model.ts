@@ -2,7 +2,13 @@
 // 所有格式(vmess/vless/trojan/ss/hysteria2 分享链接、clash yaml、sing-box json)
 // 都先解析成 UNode[]，再从 UNode[] 渲染成目标格式，避免 N×N 转换器。
 
-export type NodeType = "vmess" | "vless" | "trojan" | "ss" | "hysteria2";
+export type NodeType = "vmess" | "vless" | "trojan" | "ss" | "hysteria" | "hysteria2" | "tuic";
+
+/**
+ * 部分协议只有 mihomo(Clash Meta) 内核支持，原版 Clash / 其他基于旧内核的客户端无法识别。
+ * 用于前端展示"仅mihomo可用"提示，以及生成 Clash 订阅时的兼容性说明。
+ */
+export const MIHOMO_ONLY_TYPES: ReadonlySet<NodeType> = new Set(["hysteria", "hysteria2", "tuic"]);
 
 export type TransportType = "tcp" | "ws" | "grpc" | "http" | "quic";
 
@@ -46,10 +52,15 @@ export interface UNode {
   // shadowsocks
   method?: string; // 如 aes-256-gcm / chacha20-ietf-poly1305 / 2022-blake3-aes-256-gcm
 
-  // hysteria2
-  obfs?: { type: "salamander"; password: string };
+  // hysteria(v1) / hysteria2 共用: password 字段兼作 hysteria(v1) 的 auth-str
+  obfs?: { type: string; password: string }; // hysteria2: salamander；hysteria(v1): xplus
   upMbps?: number;
   downMbps?: number;
+  protocol?: string; // hysteria(v1) 底层承载协议，默认 udp，可选 wechat-video / faketcp
+
+  // tuic (v5): uuid 复用 vmess/vless 的 uuid 字段，password 复用 trojan 的 password 字段
+  congestionControl?: string; // bbr(默认) / cubic / new_reno
+  udpRelayMode?: "native" | "quic";
 
   tls?: TlsOpts;
   transport?: TransportOpts;
