@@ -4,13 +4,19 @@ SubGlass 是一个运行在 Cloudflare Workers 上的订阅管理工具，用于
 
 ## 功能
 
-- 支持 Clash/Mihomo YAML、sing-box JSON、vmess、vless、trojan、ss、hysteria2
+- 支持导入 Clash/Mihomo YAML、sing-box JSON，以及 vmess / vless / trojan / ss / hysteria / hysteria2 / tuic 分享链接（含整段 base64 编码的订阅内容）
 - 节点解析、去重、筛选与自定义重命名
-- 生成 Clash、sing-box、通用 V2Ray 三种订阅格式
+- 生成 Clash、sing-box、通用 V2Ray 三种订阅格式，均可被客户端持续拉取更新
+  - Clash 输出包含"节点选择 / 自动选择 / 故障转移 / 负载均衡"四个策略组
+  - sing-box 输出是包含本地 `mixed` 入站(127.0.0.1:2080)和最小 DNS 配置的完整可运行 profile，而不只是 outbounds 片段
 - 管理后台使用 `ADMIN_TOKEN` 登录，并通过 HttpOnly Cookie 保存会话
 - KV 缓存上游订阅内容和用户方案
 - iOS 风格毛玻璃界面，支持移动端底部抽屉导航
 - 自动适配 reduced motion、reduced transparency 和高对比度模式
+
+## 协议兼容性说明
+
+`hysteria`(v1)、`hysteria2`、`tuic` 这三种协议**只有 mihomo(Clash Meta) 内核支持**，原版 Clash 或其他基于旧内核的客户端无法识别这些节点。前端节点卡片会为这三种协议打上「仅mihomo」标签，生成的 Clash YAML 文件开头也会有对应注释提示。如果你的客户端不是 mihomo 内核，请只勾选 vmess/vless/trojan/ss 节点，或改用 sing-box / 通用订阅格式。
 
 ## 技术栈
 
@@ -102,5 +108,14 @@ npm test
 
 - `ADMIN_TOKEN` 只通过 Cloudflare Secrets 或本地 `.dev.vars` 配置
 - `.dev.vars` 已加入 `.gitignore`
-- 上游订阅 URL 会进行基础协议和内网地址校验
-- 管理接口需要有效会话
+- 上游订阅 URL 会进行基础协议和内网地址校验（SSRF 防护，见 `src/urlSafety.ts`）
+- 登录接口有失败次数限流：连续失败 5 次锁定该 IP 15 分钟
+- 会话 token 使用 `ADMIN_TOKEN` 做 HMAC-SHA256 签名，24 小时过期，比较采用恒定时间算法防时序攻击
+- 管理接口需要有效会话；写操作的 CSRF 防护依赖 Cookie 的 `SameSite=Strict`（跨站请求不会携带该 Cookie），未额外引入 CSRF token。这个强度对个人后台场景足够，但如果计划把管理界面嵌入其他站点的 iframe，`SameSite=Strict` 会失效，需要另行加固
+- `listProfiles` 会自动翻页读取全部 KV 条目，profile 数量增长不会丢数据
+
+## 已知限制
+
+- 未支持 SSR / WireGuard / socks5 / http 代理这几种协议，如有需要可参考现有 parser 结构自行扩展
+- sing-box 输出的完整 profile（含 inbounds/dns）是为了兼容需要"完整配置"的客户端；如果你的客户端只需要 outbounds 数组自行合并模板，读取该字段即可，其余字段可忽略
+- 没有真实的流量统计和到期时间，`Subscription-Userinfo` 响应头返回的是固定的"无限流量、永不过期"占位值
