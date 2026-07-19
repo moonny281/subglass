@@ -117,6 +117,65 @@ function requireProfile() {
 }
 
 /* ------------------------------------------------------------------ */
+/* 侧栏 / 抽屉菜单光标 — 选中态用独立滑块图层跟随激活按钮平滑滑动，          */
+/* 而不是每个按钮各自切换背景色（参考 apple-design-skill 的                */
+/* Segmented pill glide：位置变化走 transform，高度直接赋值不参与动画，     */
+/* 避免触发布局）。侧栏和移动端底部抽屉各有一份 .menu，分别独立跟踪。       */
+/* ------------------------------------------------------------------ */
+
+const menuIndicators = new Map(); // menuEl -> { indicator, animation }
+
+function ensureMenuIndicator(menuEl) {
+  if (!menuEl) return null;
+  if (!menuIndicators.has(menuEl)) {
+    let indicator = menuEl.querySelector(":scope > .menu-indicator");
+    if (!indicator) {
+      indicator = document.createElement("div");
+      indicator.className = "menu-indicator";
+      indicator.setAttribute("aria-hidden", "true");
+      menuEl.prepend(indicator);
+    }
+    menuIndicators.set(menuEl, { indicator, animation: null });
+  }
+  return menuIndicators.get(menuEl);
+}
+
+function positionMenuIndicator(menuEl, animated = true) {
+  const entry = ensureMenuIndicator(menuEl);
+  if (!entry) return;
+  const activeBtn = menuEl.querySelector("button.active");
+  if (!activeBtn) {
+    entry.indicator.style.opacity = "0";
+    return;
+  }
+
+  // 高度按当前按钮直接赋值（同一菜单里各按钮高度本就一致），只让位置参与动画
+  entry.indicator.style.height = `${activeBtn.offsetHeight}px`;
+  const targetY = activeBtn.offsetTop;
+
+  entry.animation?.stop?.();
+
+  if (prefersReducedMotion || !animated) {
+    entry.indicator.style.transform = `translate3d(0, ${targetY}px, 0)`;
+    entry.indicator.style.opacity = "1";
+    return;
+  }
+
+  entry.indicator.style.opacity = "1";
+  entry.animation = animate(
+    entry.indicator,
+    { y: targetY },
+    { type: "spring", bounce: 0.22, duration: 0.42 },
+  );
+}
+
+function refreshMenuIndicators(animated = true) {
+  document.querySelectorAll(".menu").forEach((menuEl) => positionMenuIndicator(menuEl, animated));
+}
+
+window.addEventListener("resize", () => refreshMenuIndicators(false));
+
+/* ------------------------------------------------------------------ */
 /* 视图切换 — 交叉淡出+轻微位移的spring过渡，而不是瞬间切换                */
 /* ------------------------------------------------------------------ */
 
@@ -138,6 +197,7 @@ function stopViewAnimations() {
 function switchView(name) {
   const switchToken = ++viewSwitchToken;
   document.querySelectorAll(".menu button").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
+  refreshMenuIndicators();
 
   const target = document.querySelector(`.tabs-view[data-view="${name}"]`);
   const current = document.querySelector(".tabs-view.active");
@@ -192,6 +252,36 @@ document.querySelectorAll(".menu button").forEach((btn) => {
   btn.addEventListener("click", () => switchView(btn.dataset.view));
 });
 
+// 初次进入页面时，滑块直接落位到 HTML 里已经标了 active 的按钮上，不做动画
+refreshMenuIndicators(false);
+
+/* ------------------------------------------------------------------ */
+/* 光标跟随光晕 — 玻璃卡片对鼠标位置的响应，只写 CSS 变量不触发布局；        */
+/* 仅在真鼠标 + 可 hover 的设备、且未开启"减弱动态效果"时启用。            */
+/* ------------------------------------------------------------------ */
+
+if (!prefersReducedMotion && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  let spotlightRaf = null;
+  let pendingSpotlightEvent = null;
+
+  function applySpotlight() {
+    spotlightRaf = null;
+    const e = pendingSpotlightEvent;
+    if (!e) return;
+    const el = e.target.closest(".card, .panel, .node");
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--spot-x", `${((e.clientX - rect.left) / rect.width) * 100}%`);
+    el.style.setProperty("--spot-y", `${((e.clientY - rect.top) / rect.height) * 100}%`);
+  }
+
+  document.addEventListener("pointermove", (e) => {
+    if (e.pointerType && e.pointerType !== "mouse") return;
+    pendingSpotlightEvent = e;
+    if (spotlightRaf === null) spotlightRaf = requestAnimationFrame(applySpotlight);
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* 移动端底部抽屉导航 — 直接操纵、可中断、带动量投影与橡皮筋边界            */
 /* ------------------------------------------------------------------ */
@@ -220,6 +310,7 @@ function openSheet(releaseVelocity = 0) {
   setSheetInteractive(true);
   sheetAnim?.stop();
   scrimAnim?.stop();
+  refreshMenuIndicators(false); // 抽屉每次打开都重新校准一次滑块位置，避免布局漂移
 
   if (prefersReducedMotion) {
     sheetEl.style.transform = "translateY(0)";

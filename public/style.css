@@ -118,9 +118,31 @@ small, .tag, .helper-text, .meta{
     display:flex;
     flex-direction:column;
     gap:6px;
+    position:relative; /* 光标滑块相对于菜单容器定位 */
+}
+
+/* 选中态光标 — 用一个独立图层在按钮之间平滑滑动，而不是让每个按钮各自切换背景色。
+   宽度用 left/right:0 撑满，高度/位置由 JS 按当前激活按钮的 offsetTop/offsetHeight 写入，
+   位置变化只走 transform（JS 用 spring 动画驱动），不占用文档流、不触发布局。 */
+.menu-indicator{
+    position:absolute;
+    left:0;
+    right:0;
+    top:0;
+    height:0;
+    border-radius:14px;
+    background:rgba(79,142,247,.32);
+    box-shadow:0 8px 24px rgba(79,142,247,.22);
+    pointer-events:none;
+    opacity:0;
+    z-index:0;
+    will-change:transform;
+    transition:opacity .2s var(--ease-standard);
 }
 
 .menu button{
+    position:relative;
+    z-index:1; /* 保证按钮文字/图标始终在滑块图层之上 */
     border:none;
     background:transparent;
     color:white;
@@ -139,9 +161,15 @@ small, .tag, .helper-text, .meta{
 .menu button:hover{ background:rgba(255,255,255,.1); }
 .menu button:active{ transform:scale(.98); }
 
+/* 激活态不再自己上色，颜色和阴影交给 .menu-indicator 承担，
+   按钮自身只用字重表达"这是当前选中项"，避免和滑块的颜色变化叠加打架。 */
 .menu button.active{
-    background:rgba(79,142,247,.32);
-    box-shadow:0 8px 24px rgba(79,142,247,.22);
+    background:transparent;
+    font-weight:600;
+}
+
+@media (prefers-reduced-motion:reduce){
+    .menu-indicator{ transition:none; }
 }
 
 .sidebar-footer{
@@ -579,6 +607,38 @@ small, .tag, .helper-text, .meta{
 
 /* iOS-style view transitions and responsive layout polish */
 .tabs-view.active{ will-change:opacity,transform; }
+
+/* ==========================================================================
+   光标跟随光晕 — 玻璃材质表面对指针位置的响应，呼应 Liquid Glass 的
+   "材料响应触控/指针"而非纯装饰性 blur。位置由 JS 写入 --spot-x/--spot-y
+   两个自定义属性，本身只是 background，不触发布局；只在真鼠标+可 hover
+   的设备上启用，触屏和 prefers-reduced-motion 下直接不渲染这层。
+   ========================================================================== */
+@media (hover:hover) and (pointer:fine){
+    .card,.panel,.node{ position:relative; }
+
+    .card::before,.panel::before,.node::before{
+        content:"";
+        position:absolute;
+        inset:0;
+        border-radius:inherit;
+        z-index:0;
+        opacity:0;
+        pointer-events:none;
+        background:radial-gradient(220px circle at var(--spot-x,50%) var(--spot-y,50%),
+          rgba(255,255,255,.14), transparent 65%);
+        transition:opacity .15s var(--ease-standard);
+    }
+
+    .card:hover::before,.panel:hover::before,.node:hover::before{ opacity:1; }
+
+    /* 保证卡片内文字/控件始终盖在光晕图层之上 */
+    .card > *,.panel > *,.node > *{ position:relative; z-index:1; }
+}
+
+@media (prefers-reduced-motion:reduce), (hover:none), (pointer:coarse){
+    .card::before,.panel::before,.node::before{ display:none; }
+}
 
 .card,.panel,.node,.btn,.input,.search,.upstream-item,.link-item{
     transition:transform .32s cubic-bezier(.22,1,.36,1),
