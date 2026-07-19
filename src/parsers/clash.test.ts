@@ -40,13 +40,30 @@ proxies:
     password: hy2pass
     obfs: salamander
     obfs-password: obfspass
+  - name: "Hy-Node"
+    type: hysteria
+    server: hy.example.com
+    port: 443
+    auth-str: hyauth
+    up: 100
+    down: 50
+    obfs: xplus
+    obfs-param: obfspass
+  - name: "Tuic-Node"
+    type: tuic
+    server: tuic.example.com
+    port: 443
+    uuid: 11111111-1111-1111-1111-111111111111
+    password: tuicpass
+    congestion-controller: bbr
+    udp-relay-mode: native
 `;
 
 describe("parseClashYaml", () => {
-  it("parses all 4 sample proxies", () => {
+  it("parses all 6 sample proxies", () => {
     const nodes = parseClashYaml(sampleYaml);
-    expect(nodes).toHaveLength(4);
-    expect(nodes.map((n) => n.type)).toEqual(["vless", "trojan", "ss", "hysteria2"]);
+    expect(nodes).toHaveLength(6);
+    expect(nodes.map((n) => n.type)).toEqual(["vless", "trojan", "ss", "hysteria2", "hysteria", "tuic"]);
   });
 
   it("parses vless reality fields", () => {
@@ -68,6 +85,24 @@ describe("parseClashYaml", () => {
     const nodes = parseClashYaml(sampleYaml);
     const hy2 = nodes.find((n) => n.type === "hysteria2")!;
     expect(hy2.obfs).toEqual({ type: "salamander", password: "obfspass" });
+  });
+
+  it("parses hysteria(v1) auth-str/obfs/bandwidth", () => {
+    const nodes = parseClashYaml(sampleYaml);
+    const hy = nodes.find((n) => n.type === "hysteria")!;
+    expect(hy.password).toBe("hyauth");
+    expect(hy.obfs).toEqual({ type: "xplus", password: "obfspass" });
+    expect(hy.upMbps).toBe(100);
+    expect(hy.downMbps).toBe(50);
+  });
+
+  it("parses tuic uuid/password/congestion-control", () => {
+    const nodes = parseClashYaml(sampleYaml);
+    const tuic = nodes.find((n) => n.type === "tuic")!;
+    expect(tuic.uuid).toBe("11111111-1111-1111-1111-111111111111");
+    expect(tuic.password).toBe("tuicpass");
+    expect(tuic.congestionControl).toBe("bbr");
+    expect(tuic.udpRelayMode).toBe("native");
   });
 
   it("accepts a bare proxies array (no top-level 'proxies:' key)", () => {
@@ -105,5 +140,16 @@ describe("round trip through encodeClashYaml", () => {
       expect(out).toContain(n.name);
     }
     expect(out).toContain("proxy-groups");
+    expect(out).toContain("故障转移");
+    expect(out).toContain("负载均衡");
+  });
+
+  it("warns about mihomo-only protocols in a leading comment", () => {
+    const nodes = parseClashYaml(sampleYaml);
+    const out = encodeClashYaml(nodes);
+    expect(out).toMatch(/^# 提示/);
+    expect(out).toContain("Hy2-Node");
+    expect(out).toContain("Hy-Node");
+    expect(out).toContain("Tuic-Node");
   });
 });

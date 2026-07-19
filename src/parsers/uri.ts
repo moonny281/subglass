@@ -335,6 +335,93 @@ function encodeHysteria2(node: UNode): string {
 }
 
 // ---------------------------------------------------------------------------
+// Hysteria (v1): hysteria://host:port?auth=xxx&peer=sni&insecure=1&upmbps=&downmbps=&obfs=&obfsParam=&alpn=&protocol=#name
+// ---------------------------------------------------------------------------
+
+function parseHysteria(uri: string): UNode {
+  const u = new URL(uri);
+  const { host, port } = splitHostPort(u.host);
+  const q = queryToObject(u.search);
+  const authStr = q.auth || q["auth-str"] || "";
+
+  const node: UNode = {
+    id: nodeIdOf("hysteria", host, port, authStr),
+    type: "hysteria",
+    name: extractName(u.hash, `${host}:${port}`),
+    server: host,
+    port,
+    password: authStr,
+    protocol: q.protocol || "udp",
+    upMbps: q.upmbps ? Number(q.upmbps) : undefined,
+    downMbps: q.downmbps ? Number(q.downmbps) : undefined,
+    tls: {
+      enabled: true,
+      sni: q.peer || q.sni,
+      allowInsecure: q.insecure === "1",
+      alpn: q.alpn ? q.alpn.split(",").map((s) => s.trim()) : undefined,
+    },
+  };
+  if (q.obfs) node.obfs = { type: q.obfs, password: q.obfsParam || q["obfs-password"] || "" };
+  return node;
+}
+
+function encodeHysteria(node: UNode): string {
+  const params = new URLSearchParams();
+  params.set("auth", node.password || "");
+  if (node.protocol && node.protocol !== "udp") params.set("protocol", node.protocol);
+  if (node.tls?.sni) params.set("peer", node.tls.sni);
+  if (node.tls?.allowInsecure) params.set("insecure", "1");
+  if (node.tls?.alpn?.length) params.set("alpn", node.tls.alpn.join(","));
+  if (node.upMbps !== undefined) params.set("upmbps", String(node.upMbps));
+  if (node.downMbps !== undefined) params.set("downmbps", String(node.downMbps));
+  if (node.obfs) {
+    params.set("obfs", node.obfs.type);
+    params.set("obfsParam", node.obfs.password);
+  }
+  return `hysteria://${hostForUri(node.server)}:${node.port}?${params.toString()}#${encodeURIComponent(node.name)}`;
+}
+
+// ---------------------------------------------------------------------------
+// TUIC (v5): tuic://uuid:password@host:port?congestion_control=&udp_relay_mode=&sni=&alpn=&allow_insecure=#name
+// ---------------------------------------------------------------------------
+
+function parseTuic(uri: string): UNode {
+  const u = new URL(uri);
+  const [uuid, password] = decodeURIComponent(u.username + (u.password ? ":" + u.password : "")).split(/:(.*)/s);
+  const { host, port } = splitHostPort(u.host);
+  const q = queryToObject(u.search);
+
+  return {
+    id: nodeIdOf("tuic", host, port, `${uuid}:${password || ""}`),
+    type: "tuic",
+    name: extractName(u.hash, `${host}:${port}`),
+    server: host,
+    port,
+    uuid,
+    password: password || "",
+    congestionControl: q.congestion_control || q.cc || undefined,
+    udpRelayMode: (q.udp_relay_mode as UNode["udpRelayMode"]) || undefined,
+    tls: {
+      enabled: true,
+      sni: q.sni,
+      allowInsecure: q.allow_insecure === "1" || q.insecure === "1",
+      alpn: q.alpn ? q.alpn.split(",").map((s) => s.trim()) : undefined,
+    },
+  };
+}
+
+function encodeTuic(node: UNode): string {
+  const params = new URLSearchParams();
+  if (node.congestionControl) params.set("congestion_control", node.congestionControl);
+  if (node.udpRelayMode) params.set("udp_relay_mode", node.udpRelayMode);
+  if (node.tls?.sni) params.set("sni", node.tls.sni);
+  if (node.tls?.allowInsecure) params.set("allow_insecure", "1");
+  if (node.tls?.alpn?.length) params.set("alpn", node.tls.alpn.join(","));
+  const authority = `${encodeURIComponent(node.uuid || "")}:${encodeURIComponent(node.password || "")}@${hostForUri(node.server)}:${node.port}`;
+  return `tuic://${authority}?${params.toString()}#${encodeURIComponent(node.name)}`;
+}
+
+// ---------------------------------------------------------------------------
 // 统一入口
 // ---------------------------------------------------------------------------
 
@@ -345,6 +432,8 @@ export function parseUri(uri: string): UNode {
   if (trimmed.startsWith("trojan://")) return parseTrojan(trimmed);
   if (trimmed.startsWith("ss://")) return parseSs(trimmed);
   if (trimmed.startsWith("hysteria2://") || trimmed.startsWith("hy2://")) return parseHysteria2(trimmed);
+  if (trimmed.startsWith("hysteria://")) return parseHysteria(trimmed);
+  if (trimmed.startsWith("tuic://")) return parseTuic(trimmed);
   throw new Error(`不支持的分享链接协议: ${trimmed.slice(0, 16)}...`);
 }
 
@@ -360,6 +449,10 @@ export function encodeUri(node: UNode): string {
       return encodeSs(node);
     case "hysteria2":
       return encodeHysteria2(node);
+    case "hysteria":
+      return encodeHysteria(node);
+    case "tuic":
+      return encodeTuic(node);
     default:
       throw new Error(`未知节点类型: ${(node as UNode).type}`);
   }

@@ -42,16 +42,54 @@ const sampleConfig = {
       password: "hy2pass",
       obfs: { type: "salamander", password: "obfspass" },
     },
+    {
+      type: "hysteria",
+      tag: "Hy-Node",
+      server: "hy.example.com",
+      server_port: 443,
+      auth_str: "hyauth",
+      up_mbps: 100,
+      down_mbps: 50,
+      obfs: { type: "xplus", password: "obfspass" },
+    },
+    {
+      type: "tuic",
+      tag: "Tuic-Node",
+      server: "tuic.example.com",
+      server_port: 443,
+      uuid: "11111111-1111-1111-1111-111111111111",
+      password: "tuicpass",
+      congestion_control: "bbr",
+      udp_relay_mode: "native",
+    },
     // 应被跳过的非代理出站
     { type: "direct", tag: "direct" },
   ],
 };
 
 describe("parseSingbox", () => {
-  it("parses 4 proxy outbounds and skips direct/block", () => {
+  it("parses 6 proxy outbounds and skips direct/block", () => {
     const nodes = parseSingbox(JSON.stringify(sampleConfig));
-    expect(nodes).toHaveLength(4);
-    expect(nodes.map((n) => n.type)).toEqual(["vless", "trojan", "ss", "hysteria2"]);
+    expect(nodes).toHaveLength(6);
+    expect(nodes.map((n) => n.type)).toEqual(["vless", "trojan", "ss", "hysteria2", "hysteria", "tuic"]);
+  });
+
+  it("parses hysteria(v1) auth_str/obfs/bandwidth", () => {
+    const nodes = parseSingbox(JSON.stringify(sampleConfig));
+    const hy = nodes.find((n) => n.type === "hysteria")!;
+    expect(hy.password).toBe("hyauth");
+    expect(hy.obfs).toEqual({ type: "xplus", password: "obfspass" });
+    expect(hy.upMbps).toBe(100);
+    expect(hy.downMbps).toBe(50);
+  });
+
+  it("parses tuic uuid/password/congestion_control", () => {
+    const nodes = parseSingbox(JSON.stringify(sampleConfig));
+    const tuic = nodes.find((n) => n.type === "tuic")!;
+    expect(tuic.uuid).toBe("11111111-1111-1111-1111-111111111111");
+    expect(tuic.password).toBe("tuicpass");
+    expect(tuic.congestionControl).toBe("bbr");
+    expect(tuic.udpRelayMode).toBe("native");
   });
 
   it("parses reality + utls fingerprint", () => {
@@ -69,7 +107,7 @@ describe("parseSingbox", () => {
 
   it("accepts a bare outbounds array", () => {
     const nodes = parseSingbox(JSON.stringify(sampleConfig.outbounds));
-    expect(nodes).toHaveLength(4);
+    expect(nodes).toHaveLength(6);
   });
 });
 
@@ -91,5 +129,13 @@ describe("round trip through encodeSingbox", () => {
     const types = out.outbounds.map((o: { type: string }) => o.type);
     expect(types).toContain("selector");
     expect(types).toContain("urltest");
+  });
+
+  it("produces a standalone-runnable config with inbounds + dns", () => {
+    const nodes = parseSingbox(JSON.stringify(sampleConfig));
+    const out = JSON.parse(encodeSingbox(nodes));
+    expect(out.inbounds?.[0]?.type).toBe("mixed");
+    expect(out.dns?.servers?.length).toBeGreaterThan(0);
+    expect(out.route?.final).toBe("proxy");
   });
 });

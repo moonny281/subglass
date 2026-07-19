@@ -33,9 +33,14 @@ interface SbOutbound {
   flow?: string; // vless
   tls?: SbTls;
   transport?: SbTransport;
-  obfs?: { type: string; password: string }; // hysteria2
+  obfs?: { type: string; password: string }; // hysteria(v1)/hysteria2
   up_mbps?: number;
   down_mbps?: number;
+  // hysteria(v1): sing-box 的 hysteria 出站固定走 QUIC/UDP，没有 clash 那种 protocol 变体字段
+  auth_str?: string;
+  // tuic
+  congestion_control?: string;
+  udp_relay_mode?: string;
 }
 
 interface SbConfig {
@@ -127,6 +132,32 @@ function toUNode(o: SbOutbound): UNode | null {
         upMbps: o.up_mbps,
         downMbps: o.down_mbps,
       };
+    case "hysteria":
+      return {
+        id: nodeIdOf("hysteria", o.server, o.server_port, o.auth_str || ""),
+        type: "hysteria",
+        name: o.tag,
+        server: o.server,
+        port: o.server_port,
+        password: o.auth_str || "",
+        tls: { ...tlsFrom(o.tls), enabled: true },
+        obfs: o.obfs ? { type: o.obfs.type, password: o.obfs.password } : undefined,
+        upMbps: o.up_mbps,
+        downMbps: o.down_mbps,
+      };
+    case "tuic":
+      return {
+        id: nodeIdOf("tuic", o.server, o.server_port, `${o.uuid || ""}:${o.password || ""}`),
+        type: "tuic",
+        name: o.tag,
+        server: o.server,
+        port: o.server_port,
+        uuid: o.uuid,
+        password: o.password || "",
+        congestionControl: o.congestion_control,
+        udpRelayMode: o.udp_relay_mode as UNode["udpRelayMode"],
+        tls: { ...tlsFrom(o.tls), enabled: true },
+      };
     default:
       return null;
   }
@@ -200,16 +231,48 @@ function fromUNode(n: UNode): SbOutbound {
       if (n.upMbps) out.up_mbps = n.upMbps;
       if (n.downMbps) out.down_mbps = n.downMbps;
       break;
+    case "hysteria":
+      out.auth_str = n.password;
+      out.tls = { ...out.tls, enabled: true };
+      if (n.obfs) out.obfs = { type: n.obfs.type, password: n.obfs.password };
+      if (n.upMbps) out.up_mbps = n.upMbps;
+      if (n.downMbps) out.down_mbps = n.downMbps;
+      break;
+    case "tuic":
+      out.uuid = n.uuid;
+      out.password = n.password;
+      out.tls = { ...out.tls, enabled: true };
+      if (n.congestionControl) out.congestion_control = n.congestionControl;
+      if (n.udpRelayMode) out.udp_relay_mode = n.udpRelayMode;
+      break;
   }
   return out;
 }
 
-/** 渲染为可直接使用的 sing-box 配置(inbounds留空由客户端自身配置，只提供outbounds+selector) */
+/**
+ * 渲染为可独立运行的完整 sing-box 配置。
+ *
+ * 早期版本只输出了 outbounds 片段，没有 inbounds/dns，无法被要求"完整 profile"的客户端
+ * (如 sing-box for Android/iOS 的订阅导入)直接运行；这里补上一个本地 mixed 入站
+ * (127.0.0.1:2080，行为类似 Clash 的 mixed-port)和最小 DNS 配置，
+ * 同时保留只提供 outbounds 数组、由客户端自身模板合并 的传统兼容方式的可能——
+ * 客户端只需读取本文件的 outbounds 字段即可忽略其余部分。
+ */
 export function encodeSingbox(nodes: UNode[]): string {
   const outbounds = nodes.map(fromUNode);
   const tags = outbounds.map((o) => o.tag);
   const config = {
     log: { level: "info" },
+    dns: {
+      servers: [
+        { tag: "dns-remote", type: "https", server: "1.1.1.1", detour: "proxy" },
+        { tag: "dns-direct", type: "udp", server: "223.5.5.5", detour: "direct" },
+      ],
+      final: "dns-remote",
+    },
+    inbounds: [
+      { type: "mixed", tag: "mixed-in", listen: "127.0.0.1", listen_port: 2080, sniff: true },
+    ],
     outbounds: [
       { type: "selector", tag: "proxy", outbounds: ["auto", ...tags], default: "auto" },
       { type: "urltest", tag: "auto", outbounds: tags, url: "https://www.gstatic.com/generate_204", interval: "5m" },
@@ -218,7 +281,7 @@ export function encodeSingbox(nodes: UNode[]): string {
       { type: "block", tag: "block" },
     ],
     route: {
-      rules: [{ protocol: "dns", action: "hijack-dns" }],
+      rules: [{ action: "sniff" }, { protocol: "dns", action: "hijack-dns" }],
       final: "proxy",
     },
   };
