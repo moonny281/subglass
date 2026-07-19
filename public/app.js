@@ -176,7 +176,7 @@ function refreshMenuIndicators(animated = true) {
 window.addEventListener("resize", () => refreshMenuIndicators(false));
 
 /* ------------------------------------------------------------------ */
-/* 视图切换 — 交叉淡出+轻微位移的spring过渡，而不是瞬间切换                */
+/* 视图切换 — 商务风格的顺序淡出淡入，而不是瞬间切换                       */
 /* ------------------------------------------------------------------ */
 
 function runViewSideEffects(name) {
@@ -209,31 +209,40 @@ function switchView(name) {
   stopViewAnimations();
 
   if (prefersReducedMotion || !current) {
-    if (current) current.classList.remove("active");
+    if (current) {
+      current.classList.remove("active");
+      current.style.opacity = "";
+      current.style.pointerEvents = "";
+    }
     target.classList.add("active");
     runViewSideEffects(name);
     return;
   }
 
-  target.classList.add("active");
-  target.style.opacity = "0";
-  target.style.pointerEvents = "none";
+  // 商务风格：先把当前视图完全淡出、彻底移出文档流（display:none），
+  // 再让新视图淡入。任何时刻文档流里只有一个 .tabs-view 是 active 的，
+  // 不会出现两块内容同时撑开高度、互相叠在一起的跳动感。
   current.style.pointerEvents = "none";
+  const outgoing = animate(current, { opacity: 0 }, { duration: 0.15, easing: [0.4, 0, 1, 1] });
+  viewAnimations = [outgoing];
 
-  // 商务风格：纯交叉淡出淡入，不做位移/缩放。退出用加速曲线（走得干脆），
-  // 进入用减速曲线（停得稳），离开比进入略快，避免中间出现"两块内容都很淡"的空窗感。
-  const outgoing = animate(current, { opacity: 0 }, { duration: 0.16, easing: [0.4, 0, 1, 1] });
-  const incoming = animate(target, { opacity: 1 }, { duration: 0.22, easing: [0, 0, 0.2, 1] });
-  viewAnimations = [outgoing, incoming];
-
-  Promise.all([outgoing, incoming]).then(() => {
+  outgoing.then(() => {
     if (switchToken !== viewSwitchToken) return;
+
     current.classList.remove("active");
     current.style.opacity = "";
     current.style.pointerEvents = "";
-    target.style.opacity = "";
-    target.style.pointerEvents = "";
-    viewAnimations = [];
+
+    target.classList.add("active");
+    target.style.opacity = "0";
+    const incoming = animate(target, { opacity: 1 }, { duration: 0.22, easing: [0, 0, 0.2, 1] });
+    viewAnimations = [incoming];
+
+    incoming.then(() => {
+      if (switchToken !== viewSwitchToken) return;
+      target.style.opacity = "";
+      viewAnimations = [];
+    });
   });
 
   runViewSideEffects(name);
