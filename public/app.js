@@ -127,7 +127,16 @@ function runViewSideEffects(name) {
   if (name === "dashboard") refreshDashboard();
 }
 
+let viewAnimations = [];
+let viewSwitchToken = 0;
+
+function stopViewAnimations() {
+  viewAnimations.forEach((animation) => animation?.stop?.());
+  viewAnimations = [];
+}
+
 function switchView(name) {
+  const switchToken = ++viewSwitchToken;
   document.querySelectorAll(".menu button").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
 
   const target = document.querySelector(`.tabs-view[data-view="${name}"]`);
@@ -136,6 +145,8 @@ function switchView(name) {
     runViewSideEffects(name);
     return;
   }
+
+  stopViewAnimations();
 
   if (prefersReducedMotion || !current) {
     if (current) current.classList.remove("active");
@@ -146,14 +157,33 @@ function switchView(name) {
 
   target.classList.add("active");
   target.style.opacity = "0";
-  target.style.transform = "translateY(10px)";
+  target.style.transform = "translate3d(0, 18px, 0) scale(.985)";
+  target.style.pointerEvents = "none";
+  current.style.pointerEvents = "none";
 
-  animate(current, { opacity: 0, y: -8 }, { type: "spring", bounce: 0, duration: 0.22 }).then(() => {
+  const outgoing = animate(
+    current,
+    { opacity: 0, y: -10, scale: 0.99 },
+    { type: "spring", bounce: 0.08, duration: 0.34 },
+  );
+  const incoming = animate(
+    target,
+    { opacity: 1, y: 0, scale: 1 },
+    { type: "spring", bounce: 0.22, duration: 0.48 },
+  );
+  viewAnimations = [outgoing, incoming];
+
+  Promise.all([outgoing, incoming]).then(() => {
+    if (switchToken !== viewSwitchToken) return;
     current.classList.remove("active");
     current.style.opacity = "";
     current.style.transform = "";
+    current.style.pointerEvents = "";
+    target.style.opacity = "";
+    target.style.transform = "";
+    target.style.pointerEvents = "";
+    viewAnimations = [];
   });
-  animate(target, { opacity: 1, y: 0 }, { type: "spring", bounce: 0, duration: 0.32 });
 
   runViewSideEffects(name);
 }

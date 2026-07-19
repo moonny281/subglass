@@ -578,15 +578,7 @@ small, .tag, .helper-text, .meta{
 }
 
 /* iOS-style view transitions and responsive layout polish */
-.tabs-view.active{
-    animation:view-enter .42s cubic-bezier(.22,1,.36,1) both;
-    will-change:opacity,transform;
-}
-
-@keyframes view-enter{
-    from{ opacity:0; transform:translate3d(0,12px,0) scale(.992); }
-    to{ opacity:1; transform:translate3d(0,0,0) scale(1); }
-}
+.tabs-view.active{ will-change:opacity,transform; }
 
 .card,.panel,.node,.btn,.input,.search,.upstream-item,.link-item{
     transition:transform .32s cubic-bezier(.22,1,.36,1),
