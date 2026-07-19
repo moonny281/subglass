@@ -348,6 +348,7 @@ small, .tag, .helper-text, .meta{
 
 .tag.tls{ background:var(--accent-3); }
 .tag.reality{ background:var(--accent-2); color:#08111F; font-weight:700; }
+.tag.mihomo{ background:#FF9F45; color:#2b1400; font-weight:700; }
 
 .checkbox{
     margin-top:16px;

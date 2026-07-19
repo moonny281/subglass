@@ -624,10 +624,16 @@ document.getElementById("btnPreviewPaste").addEventListener("click", async () =>
 /* 节点管理                                                             */
 /* ------------------------------------------------------------------ */
 
+// 仅 mihomo(Clash Meta) 内核支持的协议，原版 Clash 等旧内核客户端无法识别
+const MIHOMO_ONLY_TYPES = new Set(["hysteria", "hysteria2", "tuic"]);
+
 function tlsTagsFor(node) {
   const tags = [];
   if (node.tls && node.tls.enabled) tags.push('<span class="tag tls">TLS</span>');
   if (node.tls && node.tls.reality) tags.push('<span class="tag reality">Reality</span>');
+  if (MIHOMO_ONLY_TYPES.has(node.type)) {
+    tags.push('<span class="tag mihomo" title="仅 mihomo(Clash Meta) 内核支持，原版 Clash 无法识别">仅mihomo</span>');
+  }
   return tags.join(" ");
 }
 
