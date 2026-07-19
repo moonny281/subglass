@@ -576,3 +576,24 @@ small, .tag, .helper-text, .meta{
 @media (min-width: 861px){
     .mobile-topbar, .sheet, .sheet-scrim{ display:none !important; }
 }
+
+/* Accessible iOS glass: keep the translucent surfaces, but guarantee readable text. */
+:root{
+    --text-primary:#f8fbff;
+    --text-secondary:#d7e2f1;
+    --text-muted:#b8c7da;
+    --surface-solid:rgba(12,20,34,.82);
+}
+
+body{ color:var(--text-primary); }
+.sidebar,.mobile-topbar{ background:rgba(8,16,30,.78); }
+.card,.panel,.node{ background:var(--surface-solid); }
+.card h3,.section-title,.node p,.helper-text,.empty-hint,
+.sub-url-preview,.upstream-item .meta,.link-item .url{ opacity:1; color:var(--text-secondary); }
+.node p,.helper-text,.empty-hint,.sub-url-preview,.upstream-item .meta,.link-item .url{ color:var(--text-muted); }
+.search,.input,textarea.input{ color:var(--text-primary); background:rgba(10,18,32,.72); border-color:rgba(255,255,255,.2); }
+.search::placeholder,.input::placeholder,textarea.input::placeholder{ color:#aebed2; opacity:1; }
+.btn.secondary{ color:var(--text-primary); background:rgba(35,52,76,.9); border-color:rgba(255,255,255,.24); }
+.upstream-item,.link-item{ background:rgba(18,30,49,.82); border:1px solid rgba(255,255,255,.16); }
+.tag{ color:#07111e; }
+.tag.tls{ color:#fff; }
