@@ -577,6 +577,68 @@ small, .tag, .helper-text, .meta{
     .mobile-topbar, .sheet, .sheet-scrim{ display:none !important; }
 }
 
+/* iOS-style view transitions and responsive layout polish */
+.tabs-view.active{
+    animation:view-enter .42s cubic-bezier(.22,1,.36,1) both;
+    will-change:opacity,transform;
+}
+
+@keyframes view-enter{
+    from{ opacity:0; transform:translate3d(0,12px,0) scale(.992); }
+    to{ opacity:1; transform:translate3d(0,0,0) scale(1); }
+}
+
+.card,.panel,.node,.btn,.input,.search,.upstream-item,.link-item{
+    transition:transform .32s cubic-bezier(.22,1,.36,1),
+      background-color .32s ease, border-color .32s ease,
+      box-shadow .32s ease;
+}
+.card:hover,.panel:hover,.node:hover{ box-shadow:0 18px 42px rgba(0,0,0,.18); }
+.btn:focus-visible,.input:focus-visible,.search:focus-visible,
+.menu button:focus-visible{ outline:3px solid rgba(0,212,255,.72); outline-offset:3px; }
+
+@media (max-width:860px){
+    body{ background:
+      radial-gradient(circle at 0 0,rgba(79,142,247,.55),transparent 34%),
+      radial-gradient(circle at 100% 15%,rgba(0,212,255,.25),transparent 30%),
+      #08111f; }
+    .main{ padding:18px 14px calc(28px + env(safe-area-inset-bottom)); }
+    .header{ margin-bottom:18px; align-items:flex-start; }
+    .header h2{ font-size:1.35rem; }
+    .cards{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .card{ padding:16px; border-radius:20px; }
+    .card h3{ font-size:.78rem; line-height:1.25; }
+    .card h1{ font-size:1.8rem; margin-top:8px; }
+    .panel{ padding:16px; border-radius:20px; }
+    .section{ margin-top:18px; }
+    .section-title{ font-size:.95rem; }
+    .row{ gap:9px; }
+    .row > *{ min-width:100%; flex-basis:100%; }
+    .row .btn{ width:100%; }
+    .search{ width:100%; }
+    .nodes{ grid-template-columns:1fr; gap:12px; margin-top:14px; }
+    .node{ padding:16px; border-radius:18px; }
+    .link-item,.upstream-item{ align-items:stretch; flex-direction:column; padding:14px; }
+    .link-item .btn,.upstream-item .btn{ width:100%; }
+    .qr-wrap{ max-width:100%; }
+    .qr-canvas svg{ max-width:100%; height:auto; }
+    .mobile-topbar{ padding:12px 14px; min-height:64px; }
+    .mobile-topbar .logo{ font-size:1.1rem; }
+    .sheet{ padding-left:14px; padding-right:14px; }
+    .sheet .menu button{ min-height:52px; }
+    .toast{ left:14px; right:14px; bottom:calc(18px + env(safe-area-inset-bottom)); transform:translateY(16px) scale(.94); text-align:center; }
+}
+
+@media (max-width:380px){
+    .cards{ grid-template-columns:1fr; }
+    .main{ padding-left:12px; padding-right:12px; }
+}
+
+@media (prefers-reduced-motion:reduce){
+    .tabs-view.active{ animation:none; }
+    .card,.panel,.node,.btn,.input,.search,.upstream-item,.link-item{ transition:none; }
+}
+
 /* Accessible iOS glass: keep the translucent surfaces, but guarantee readable text. */
 :root{
     --text-primary:#f8fbff;
