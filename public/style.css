@@ -350,6 +350,44 @@ small, .tag, .helper-text, .meta{
 .tag.reality{ background:var(--accent-2); color:#08111F; font-weight:700; }
 .tag.mihomo{ background:#FF9F45; color:#2b1400; font-weight:700; }
 
+.protocol-filter{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin:14px 0 4px;
+}
+
+.protocol-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:7px 14px;
+    border-radius:999px;
+    background:rgba(255,255,255,.06);
+    border:1.5px solid transparent;
+    font-size:.8rem;
+    font-weight:600;
+    cursor:pointer;
+    transition:background .18s ease, border-color .18s ease, transform .12s ease;
+}
+
+.protocol-chip:hover{ background:rgba(255,255,255,.11); }
+.protocol-chip:active{ transform:scale(.96); }
+
+.protocol-chip.active{
+    background:var(--accent-2);
+    color:#08111F;
+    border-color:var(--accent-2);
+}
+
+.protocol-chip .count{
+    opacity:.65;
+    font-weight:400;
+    font-size:.75rem;
+}
+
+.protocol-chip.active .count{ opacity:.75; }
+
 .checkbox{
     margin-top:16px;
     display:flex;

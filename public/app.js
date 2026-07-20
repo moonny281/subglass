@@ -45,6 +45,7 @@ const state = {
   pendingSelected: new Set(),
   pendingRename: {},
   profileList: [],
+  protocolFilter: "all",
 };
 
 let toastAnim = null;
@@ -768,18 +769,61 @@ function tlsTagsFor(node) {
   return tags.join(" ");
 }
 
+// 当前支持导入/导出的全部协议类型，用于渲染筛选标签栏（顺序即展示顺序）
+const PROTOCOL_LIST = ["vmess", "vless", "trojan", "ss", "hysteria", "hysteria2", "tuic", "anytls"];
+
+/** 根据当前节点池统计每种协议的节点数，用于筛选标签栏上的计数徽标 */
+function protocolCounts() {
+  const counts = Object.fromEntries(PROTOCOL_LIST.map((t) => [t, 0]));
+  for (const n of state.pool) {
+    if (counts[n.type] !== undefined) counts[n.type]++;
+  }
+  return counts;
+}
+
+function renderProtocolFilter() {
+  const box = document.getElementById("protocolFilter");
+  const counts = protocolCounts();
+  const chips = [{ type: "all", label: "全部", count: state.pool.length }, ...PROTOCOL_LIST.map((t) => ({ type: t, label: t.toUpperCase(), count: counts[t] }))];
+
+  box.innerHTML = chips
+    .map(
+      (c) => `
+      <button class="protocol-chip${state.protocolFilter === c.type ? " active" : ""}" data-protocol="${c.type}">
+        ${c.label} <span class="count">${c.count}</span>
+      </button>
+    `,
+    )
+    .join("");
+
+  box.querySelectorAll("[data-protocol]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.protocolFilter = btn.dataset.protocol;
+      hapticTap();
+      renderProtocolFilter();
+      renderNodeGrid(document.getElementById("nodeSearch").value.trim());
+    });
+  });
+}
+
 function renderNodeGrid(filterText) {
   const grid = document.getElementById("nodeGrid");
   const emptyHint = document.getElementById("nodesEmptyHint");
   grid.innerHTML = "";
 
   const filtered = state.pool.filter((n) => {
+    if (state.protocolFilter && state.protocolFilter !== "all" && n.type !== state.protocolFilter) return false;
     if (!filterText) return true;
     const hay = (n.name + " " + n.server).toLowerCase();
     return hay.includes(filterText.toLowerCase());
   });
 
   emptyHint.style.display = state.pool.length === 0 ? "block" : "none";
+
+  if (state.pool.length > 0 && filtered.length === 0) {
+    grid.innerHTML = '<div class="empty-hint">没有匹配当前筛选条件的节点</div>';
+    return;
+  }
 
   for (const n of filtered) {
     const checked = state.pendingSelected.has(n.id);
@@ -834,6 +878,7 @@ async function refreshPool() {
     state.pool = data.nodes;
     state.pendingSelected = new Set(data.selectedIds);
     state.pendingRename = Object.assign({}, data.renameMap);
+    renderProtocolFilter();
     renderNodeGrid(document.getElementById("nodeSearch").value.trim());
     renderSidebarStats();
   } catch (e) {
@@ -996,6 +1041,7 @@ function escapeHtml(str) {
   renderLoginState();
   renderSettingsInfo();
   renderSidebarStats();
+  renderProtocolFilter();
   const authed = await checkSession();
   if (authed) {
     await loadProfileList();
