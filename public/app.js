@@ -627,10 +627,14 @@ function renderUpstreamList() {
   for (const u of state.profile.upstreams) {
     const row = document.createElement("div");
     row.className = "upstream-item";
+    const meta =
+      u.type === "raw"
+        ? `📋 原生格式粘贴内容（${(u.content || "").length} 字符，不会自动更新）`
+        : `🔗 ${escapeHtml(u.url || "")}`;
     row.innerHTML = `
       <div>
         <div>${escapeHtml(u.label)}</div>
-        <div class="meta">${escapeHtml(u.url)}</div>
+        <div class="meta">${meta}</div>
       </div>
       <button class="btn danger small" data-remove="${u.id}">移除</button>
     `;
@@ -717,12 +721,42 @@ document.getElementById("btnPreviewPaste").addEventListener("click", async () =>
   }
 });
 
+document.getElementById("btnAddPaste").addEventListener("click", async () => {
+  if (!requireProfile()) return;
+  const label = document.getElementById("pasteLabel").value.trim() || "粘贴的节点";
+  const text = document.getElementById("pasteText").value.trim();
+  const resultBox = document.getElementById("pastePreviewResult");
+  if (!text) return toast("请先粘贴内容", true);
+
+  const btn = document.getElementById("btnAddPaste");
+  btn.disabled = true;
+  btn.textContent = "保存中...";
+  try {
+    // 先校验一遍能否解析出节点，避免把无法识别的内容存进方案里
+    const preview = await api("/api/import", { method: "POST", body: JSON.stringify({ text }) });
+    const profile = await api(`/api/profile/${state.profileId}`, {
+      method: "PUT",
+      body: JSON.stringify({ addUpstream: { label, content: text } }),
+    });
+    setProfile(profile);
+    document.getElementById("pasteText").value = "";
+    document.getElementById("pasteLabel").value = "";
+    resultBox.textContent = "";
+    toast(`已保存，解析到 ${preview.count} 个节点`);
+  } catch (e) {
+    toast("保存失败：" + e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "保存为上游";
+  }
+});
+
 /* ------------------------------------------------------------------ */
 /* 节点管理                                                             */
 /* ------------------------------------------------------------------ */
 
 // 仅 mihomo(Clash Meta) 内核支持的协议，原版 Clash 等旧内核客户端无法识别
-const MIHOMO_ONLY_TYPES = new Set(["hysteria", "hysteria2", "tuic"]);
+const MIHOMO_ONLY_TYPES = new Set(["hysteria", "hysteria2", "tuic", "anytls"]);
 
 function tlsTagsFor(node) {
   const tags = [];

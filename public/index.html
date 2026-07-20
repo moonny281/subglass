@@ -112,7 +112,7 @@
       <div class="header"><h2>导入订阅</h2></div>
 
       <div class="panel">
-        <h3 class="section-title">添加上游订阅链接（持久化，客户端每次刷新都会重新拉取）</h3>
+        <h3 class="section-title">方式一：添加可拉取的订阅链接（持久化，客户端每次刷新都会重新拉取最新内容）</h3>
         <div class="row">
           <input class="input" id="upstreamLabel" placeholder="备注名，如：机场A" />
           <input class="input" id="upstreamUrl" placeholder="https://example.com/sub" />
@@ -122,10 +122,17 @@
       </div>
 
       <div class="section panel">
-        <h3 class="section-title">粘贴内容快速预览（不会持久化，仅用于确认格式能否解析）</h3>
-        <textarea class="input" id="pasteText" rows="6" style="width:100%;resize:vertical;" placeholder="粘贴 clash yaml / sing-box json / vmess,vless,trojan,ss,hysteria,hysteria2,tuic 分享链接（一行一个），或整段 base64 订阅内容"></textarea>
+        <h3 class="section-title">方式二：粘贴节点原生格式（同样会持久化保存，内容固定不再变化）</h3>
+        <p class="helper-text">
+          适用于没有订阅链接、只拿到单个/多个节点分享链接的情况：支持 clash yaml、sing-box json，
+          以及 vmess / vless / trojan / ss / hysteria / hysteria2 / tuic / anytls 分享链接（一行一个），
+          或整段 base64 编码的订阅内容。
+        </p>
+        <input class="input" id="pasteLabel" placeholder="备注名，如：朋友分享的节点" style="margin-top:10px;" />
+        <textarea class="input" id="pasteText" rows="6" style="width:100%;resize:vertical;margin-top:10px;" placeholder="粘贴节点内容..."></textarea>
         <div class="row" style="margin-top:14px;">
           <button class="btn secondary" id="btnPreviewPaste">预览解析</button>
+          <button class="btn" id="btnAddPaste">保存为上游</button>
         </div>
         <div id="pastePreviewResult" class="helper-text"></div>
       </div>
