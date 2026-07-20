@@ -109,13 +109,18 @@ async function handleImport(req: Request): Promise<Response> {
 }
 
 async function handleCreateProfile(req: Request, env: Env): Promise<Response> {
-  const body = (await req.json().catch(() => ({}))) as { name?: string; upstreams?: { label: string; url: string }[] };
+  const body = (await req.json().catch(() => ({}))) as {
+    name?: string;
+    upstreams?: { label: string; url?: string; content?: string }[];
+  };
   const profile = newProfile(body.name || "我的订阅");
   if (body.upstreams?.length) {
     profile.upstreams = body.upstreams.map((u) => ({
       id: crypto.randomUUID(),
       label: u.label,
-      url: u.url,
+      type: u.content !== undefined ? "raw" : "url",
+      url: u.content === undefined ? u.url : undefined,
+      content: u.content,
       addedAt: Date.now(),
     }));
   }
@@ -137,7 +142,7 @@ async function handleListProfiles(env: Env): Promise<Response> {
 interface ProfilePatch {
   name?: string;
   upstreams?: ImportSource[];
-  addUpstream?: { label: string; url: string };
+  addUpstream?: { label: string; url?: string; content?: string };
   selectedIds?: string[];
   renameMap?: Record<string, string>;
 }
@@ -150,10 +155,14 @@ async function handleUpdateProfile(req: Request, env: Env, id: string): Promise<
   if (patch.name !== undefined) profile.name = patch.name;
   if (patch.upstreams !== undefined) profile.upstreams = patch.upstreams;
   if (patch.addUpstream) {
+    const { label, url, content } = patch.addUpstream;
+    if (content === undefined && !url) return errorJson("请提供 url 或 content 字段之一", 400);
     profile.upstreams.push({
       id: crypto.randomUUID(),
-      label: patch.addUpstream.label,
-      url: patch.addUpstream.url,
+      label,
+      type: content !== undefined ? "raw" : "url",
+      url: content === undefined ? url : undefined,
+      content,
       addedAt: Date.now(),
     });
   }

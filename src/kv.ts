@@ -6,9 +6,18 @@ const PROFILE_PREFIX = "profile:";
 const CACHE_PREFIX = "cache:";
 const UPSTREAM_CACHE_TTL_SECONDS = 600; // 10分钟，防止上游被高频拉取的客户端打爆
 
+/**
+ * 兼容旧数据：早期版本的 ImportSource 没有 type 字段，永远都是可拉取的 url。
+ * 这里在读取时补全，避免新代码假设 type 一定存在而出错。
+ */
+function normalizeProfile(profile: Profile): Profile {
+  profile.upstreams = profile.upstreams.map((u) => (u.type ? u : { ...u, type: "url" as const }));
+  return profile;
+}
+
 export async function getProfile(env: Env, id: string): Promise<Profile | null> {
   const raw = await env.SUBGLASS_KV.get(PROFILE_PREFIX + id);
-  return raw ? (JSON.parse(raw) as Profile) : null;
+  return raw ? normalizeProfile(JSON.parse(raw) as Profile) : null;
 }
 
 export async function putProfile(env: Env, profile: Profile): Promise<void> {
@@ -34,7 +43,7 @@ export async function listProfiles(env: Env): Promise<Profile[]> {
   const profiles = await Promise.all(
     keyNames.map(async (name) => {
       const raw = await env.SUBGLASS_KV.get(name);
-      return raw ? (JSON.parse(raw) as Profile) : null;
+      return raw ? normalizeProfile(JSON.parse(raw) as Profile) : null;
     }),
   );
   return profiles.filter((p): p is Profile => p !== null);

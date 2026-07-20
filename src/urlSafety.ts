@@ -25,7 +25,17 @@ export function assertSafeUpstreamUrl(urlStr: string): void {
   } catch {
     throw new UnsafeUrlError("不是合法的URL");
   }
-  const shareProtocols = new Set(["vmess:", "vless:", "trojan:", "ss:", "hysteria2:", "hy2:"]);
+  const shareProtocols = new Set([
+    "vmess:",
+    "vless:",
+    "trojan:",
+    "ss:",
+    "hysteria2:",
+    "hy2:",
+    "hysteria:",
+    "tuic:",
+    "anytls:",
+  ]);
   if (shareProtocols.has(url.protocol)) return;
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new UnsafeUrlError("仅支持 http/https 协议的订阅链接");

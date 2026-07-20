@@ -13,7 +13,9 @@ export class NoNodesSelectedError extends Error {
 /** 拉取 profile 所有上游、合并去重后的完整节点池（未经选择/改名过滤） */
 export async function buildNodePool(env: Env, profile: Profile): Promise<UNode[]> {
   const results = await Promise.allSettled(
-    profile.upstreams.map((u) => fetchUpstreamCached(env, u.url)),
+    profile.upstreams.map((u) =>
+      u.type === "raw" ? Promise.resolve(u.content || "") : fetchUpstreamCached(env, u.url || ""),
+    ),
   );
 
   const allNodes: UNode[] = [];

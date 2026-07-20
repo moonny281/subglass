@@ -2,13 +2,13 @@
 // 所有格式(vmess/vless/trojan/ss/hysteria2 分享链接、clash yaml、sing-box json)
 // 都先解析成 UNode[]，再从 UNode[] 渲染成目标格式，避免 N×N 转换器。
 
-export type NodeType = "vmess" | "vless" | "trojan" | "ss" | "hysteria" | "hysteria2" | "tuic";
+export type NodeType = "vmess" | "vless" | "trojan" | "ss" | "hysteria" | "hysteria2" | "tuic" | "anytls";
 
 /**
  * 部分协议只有 mihomo(Clash Meta) 内核支持，原版 Clash / 其他基于旧内核的客户端无法识别。
  * 用于前端展示"仅mihomo可用"提示，以及生成 Clash 订阅时的兼容性说明。
  */
-export const MIHOMO_ONLY_TYPES: ReadonlySet<NodeType> = new Set(["hysteria", "hysteria2", "tuic"]);
+export const MIHOMO_ONLY_TYPES: ReadonlySet<NodeType> = new Set(["hysteria", "hysteria2", "tuic", "anytls"]);
 
 export type TransportType = "tcp" | "ws" | "grpc" | "http" | "quic";
 
@@ -62,6 +62,12 @@ export interface UNode {
   congestionControl?: string; // bbr(默认) / cubic / new_reno
   udpRelayMode?: "native" | "quic";
 
+  // anytls: password 复用 trojan 的 password 字段；TLS 走公用 tls 字段(含 fingerprint)
+  // 注意：Xray-core 不支持 anytls，只有 mihomo 和 sing-box 支持
+  idleSessionCheckInterval?: number; // 秒，默认 30
+  idleSessionTimeout?: number; // 秒，默认 30
+  minIdleSession?: number; // 默认 0
+
   tls?: TlsOpts;
   transport?: TransportOpts;
 
@@ -72,7 +78,14 @@ export interface UNode {
 export interface ImportSource {
   id: string;
   label: string; // 用户可编辑的备注名，如"机场A"
-  url: string; // 上游订阅链接
+  /**
+   * "url": 每次生成订阅都会重新拉取 url 字段指向的链接(可更新)
+   * "raw": 直接持久化保存 content 字段中的原始文本(粘贴的分享链接/yaml/json)，
+   *        不会主动拉取任何地址；内容本身不会再变化，除非用户手动编辑替换
+   */
+  type: "url" | "raw";
+  url?: string; // type==="url" 时必填：上游订阅链接
+  content?: string; // type==="raw" 时必填：原始节点分享链接/clash yaml/sing-box json 文本
   addedAt: number;
 }
 
