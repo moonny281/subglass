@@ -48,6 +48,35 @@ body{
     -webkit-tap-highlight-color:transparent;
 }
 
+/* 登录门：默认(未登录)显示登录卡片、隐藏整个应用主体；登录成功后 JS 给 body 加 .authed 反过来 */
+.login-gate{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:24px;
+}
+
+body.authed .login-gate{ display:none; }
+body:not(.authed) .app,
+body:not(.authed) .mobile-topbar,
+body:not(.authed) .sheet,
+body:not(.authed) .sheet-scrim{
+    display:none !important;
+}
+
+.login-card{
+    width:100%;
+    max-width:380px;
+    padding:32px 28px;
+    border-radius:24px;
+    background:rgba(255,255,255,.06);
+    backdrop-filter:blur(24px);
+    -webkit-backdrop-filter:blur(24px);
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 24px 60px rgba(0,0,0,.35);
+}
+
 /* ==========================================================================
    Typography scale — tracking/leading is size-specific, never one fixed value
    ========================================================================== */
@@ -349,6 +378,15 @@ small, .tag, .helper-text, .meta{
 .tag.tls{ background:var(--accent-3); }
 .tag.reality{ background:var(--accent-2); color:#08111F; font-weight:700; }
 .tag.mihomo{ background:#FF9F45; color:#2b1400; font-weight:700; }
+.tag.transport{ background:rgba(255,255,255,.14); }
+.tag.fingerprint{ background:rgba(255,255,255,.1); font-weight:500; }
+
+.node-detail{
+    opacity:.5;
+    font-size:.76rem;
+    margin-top:2px;
+    word-break:break-all;
+}
 
 .protocol-filter{
     display:flex;

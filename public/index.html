@@ -10,6 +10,39 @@
 </head>
 <body>
 
+<div class="login-gate" id="loginGate">
+  <div class="login-card">
+    <div class="logo" style="justify-content:center;">
+      <svg class="logo-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="lg1lg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#4F8EF7"/>
+            <stop offset="100%" stop-color="#8B5CF6"/>
+          </linearGradient>
+          <linearGradient id="lg2lg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#00D4FF"/>
+            <stop offset="100%" stop-color="#4F8EF7"/>
+          </linearGradient>
+        </defs>
+        <path d="M13 30c-5 0-9-3.8-9-8.5S8 13 13 13c.6 0 1.1 0 1.6.1C16.3 8.8 20.6 6 25.5 6c6.5 0 11.8 4.9 12.4 11.2 4.1.9 7.1 4.4 7.1 8.6 0 4.9-4.2 9.2-9.4 9.2H13z" fill="url(#lg1lg)" opacity="0.9"/>
+        <path d="M24 20l7 5-2.7 9.5H19.7L17 25z" fill="url(#lg2lg)" opacity="0.95"/>
+      </svg>
+      SubGlass
+    </div>
+    <h2 style="text-align:center;margin:14px 0 6px;">登录</h2>
+    <p class="helper-text" id="loginGateError" style="display:none;color:#ff8a8a;text-align:center;"></p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px;">
+      <input class="input" id="loginUsername" placeholder="用户名（旧版仅令牌部署可留空）" autocomplete="username" />
+      <input class="input" id="loginPassword" type="password" placeholder="密码 / 令牌" autocomplete="current-password" />
+      <button class="btn" id="btnLoginGate" style="width:100%;">登录</button>
+    </div>
+    <p class="helper-text" style="margin-top:16px;">
+      登录后浏览器只会保存一个 24 小时有效期的会话凭证（HttpOnly Cookie，网页脚本无法读取），不会长期保存密码本身。
+      用户名/密码在服务端 Cloudflare Dashboard 的环境变量里配置（ADMIN_USERNAME / ADMIN_PASSWORD）。
+    </p>
+  </div>
+</div>
+
 <div class="mobile-topbar">
     <div class="logo">
       <svg class="logo-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
@@ -174,18 +207,14 @@
     <section class="tabs-view" data-view="settings">
       <div class="header"><h2>设置</h2></div>
       <div class="panel">
-        <h3 class="section-title">登录</h3>
+        <h3 class="section-title">登录状态</h3>
         <p class="helper-text" id="loginStatus">未登录</p>
-        <div class="row" id="loginRow">
-          <input class="input" id="adminToken" type="password" placeholder="ADMIN_TOKEN" autocomplete="off" />
-          <button class="btn" id="btnLogin">登录</button>
-        </div>
         <div class="row" id="loggedInRow" style="display:none;">
           <button class="btn secondary" id="btnLogout">退出登录</button>
         </div>
         <p class="helper-text">
-          登录后浏览器只会保存一个24小时有效期的会话凭证（HttpOnly Cookie，网页脚本无法读取），
-          不会长期保存 ADMIN_TOKEN 本身。会话过期后需要重新输入令牌登录。
+          登录用户名/密码在 Cloudflare Dashboard 的环境变量里配置，这里不再需要输入密钥。
+          会话有效期 24 小时（HttpOnly Cookie），过期后会自动回到登录页。
         </p>
       </div>
 
@@ -208,6 +237,21 @@
             <button class="btn secondary" id="btnLoadProfile">加载方案</button>
           </div>
         </details>
+      </div>
+
+      <div class="section panel">
+        <h3 class="section-title">当前方案的到期时间</h3>
+        <div class="row">
+          <label class="helper-text" style="flex:0 0 130px;">到期时间</label>
+          <input class="input" id="profileExpiresAt" type="datetime-local" />
+        </div>
+        <div class="row" style="margin-top:14px;">
+          <button class="btn small" id="btnSaveLimits">保存</button>
+          <button class="btn secondary small" id="btnClearLimits">清除</button>
+        </div>
+        <p class="helper-text" style="margin-top:12px;">
+          到期后订阅链接会被直接拒绝访问(HTTP 410)。留空表示永不过期。
+        </p>
       </div>
     </section>
 

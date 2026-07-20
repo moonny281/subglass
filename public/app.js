@@ -106,8 +106,8 @@ async function api(path, opts = {}) {
 
 function requireProfile() {
   if (!state.authenticated) {
-    toast("请先在「设置」中登录", true);
-    switchView("settings");
+    toast("登录已失效，请重新登录", true);
+    showLoginGate();
     return false;
   }
   if (!state.profileId) {
@@ -409,21 +409,33 @@ if (!prefersReducedMotion) {
 }
 
 /* ------------------------------------------------------------------ */
-/* 设置：登录 & 方案                                                    */
+/* 登录门 & 设置：登录状态 & 方案                                        */
 /* ------------------------------------------------------------------ */
+
+function showApp() {
+  document.body.classList.add("authed");
+}
+
+function showLoginGate(errorMsg) {
+  document.body.classList.remove("authed");
+  const errEl = document.getElementById("loginGateError");
+  if (errorMsg) {
+    errEl.textContent = errorMsg;
+    errEl.style.display = "block";
+  } else {
+    errEl.style.display = "none";
+  }
+}
 
 function renderLoginState() {
   const statusEl = document.getElementById("loginStatus");
-  const tokenRow = document.getElementById("loginRow");
   const loggedInRow = document.getElementById("loggedInRow");
   if (state.authenticated) {
     const expireStr = state.sessionExpiresAt ? new Date(state.sessionExpiresAt).toLocaleString() : "";
     statusEl.textContent = `已登录，会话将在 ${expireStr} 过期`;
-    tokenRow.style.display = "none";
     loggedInRow.style.display = "flex";
   } else {
     statusEl.textContent = "未登录";
-    tokenRow.style.display = "flex";
     loggedInRow.style.display = "none";
   }
 }
@@ -447,24 +459,44 @@ async function checkSession() {
     state.authenticated = false;
   }
   renderLoginState();
+  if (state.authenticated) showApp();
+  else showLoginGate();
   return state.authenticated;
 }
 
-document.getElementById("btnLogin").addEventListener("click", async () => {
-  const v = document.getElementById("adminToken").value.trim();
-  if (!v) return toast("令牌不能为空", true);
+async function doLogin() {
+  const username = document.getElementById("loginUsername").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  if (!password) return toast("密码不能为空", true);
+
+  const btn = document.getElementById("btnLoginGate");
+  btn.disabled = true;
+  btn.textContent = "登录中...";
   try {
-    const result = await api("/api/login", { method: "POST", body: JSON.stringify({ token: v }) });
+    const result = await api("/api/login", { method: "POST", body: JSON.stringify({ username, password }) });
     state.authenticated = true;
     state.sessionExpiresAt = result.expiresAt;
-    document.getElementById("adminToken").value = "";
+    document.getElementById("loginPassword").value = "";
+    showApp();
+    document.getElementById("loginGateError").style.display = "none";
     renderLoginState();
     toast("登录成功");
     await loadProfileList();
     if (state.profileId) loadProfile(state.profileId);
   } catch (e) {
-    toast("登录失败：" + e.message, true);
+    showLoginGate(e.message || "登录失败");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "登录";
   }
+}
+
+document.getElementById("btnLoginGate").addEventListener("click", doLogin);
+document.getElementById("loginPassword").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") doLogin();
+});
+document.getElementById("loginUsername").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("loginPassword").focus();
 });
 
 document.getElementById("btnLogout").addEventListener("click", async () => {
@@ -478,6 +510,7 @@ document.getElementById("btnLogout").addEventListener("click", async () => {
   state.profileList = [];
   renderLoginState();
   renderProfileList();
+  showLoginGate();
   toast("已退出登录");
 });
 
@@ -601,6 +634,7 @@ function setProfile(profile) {
   renderSidebarStats();
   renderUpstreamList();
   renderProfileList();
+  renderProfileLimits();
 }
 
 async function loadProfile(id) {
@@ -613,6 +647,52 @@ async function loadProfile(id) {
     toast("加载失败：" + e.message, true);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* 到期时间                                                             */
+/* ------------------------------------------------------------------ */
+
+/** datetime-local 输入框要的是不带时区的本地时间字符串 "YYYY-MM-DDTHH:mm" */
+function msToDatetimeLocal(ms) {
+  const d = new Date(ms - new Date().getTimezoneOffset() * 60000);
+  return d.toISOString().slice(0, 16);
+}
+
+function renderProfileLimits() {
+  const expiresInput = document.getElementById("profileExpiresAt");
+  if (!state.profile) {
+    expiresInput.value = "";
+    return;
+  }
+  expiresInput.value = state.profile.expiresAt ? msToDatetimeLocal(state.profile.expiresAt) : "";
+}
+
+document.getElementById("btnSaveLimits").addEventListener("click", async () => {
+  if (!requireProfile()) return;
+  const expiresStr = document.getElementById("profileExpiresAt").value;
+  const patch = { expiresAt: expiresStr ? new Date(expiresStr).getTime() : null };
+  try {
+    const profile = await api(`/api/profile/${state.profileId}`, { method: "PUT", body: JSON.stringify(patch) });
+    setProfile(profile);
+    toast("已保存");
+  } catch (e) {
+    toast("保存失败：" + e.message, true);
+  }
+});
+
+document.getElementById("btnClearLimits").addEventListener("click", async () => {
+  if (!requireProfile()) return;
+  try {
+    const profile = await api(`/api/profile/${state.profileId}`, {
+      method: "PUT",
+      body: JSON.stringify({ expiresAt: null }),
+    });
+    setProfile(profile);
+    toast("已清除");
+  } catch (e) {
+    toast("清除失败：" + e.message, true);
+  }
+});
 
 /* ------------------------------------------------------------------ */
 /* 导入订阅                                                             */
@@ -759,14 +839,40 @@ document.getElementById("btnAddPaste").addEventListener("click", async () => {
 // 仅 mihomo(Clash Meta) 内核支持的协议，原版 Clash 等旧内核客户端无法识别
 const MIHOMO_ONLY_TYPES = new Set(["hysteria", "hysteria2", "tuic", "anytls"]);
 
+const TRANSPORT_LABELS = { tcp: "TCP", ws: "WebSocket", grpc: "gRPC", http: "HTTP/2", quic: "QUIC" };
+
 function tlsTagsFor(node) {
   const tags = [];
-  if (node.tls && node.tls.enabled) tags.push('<span class="tag tls">TLS</span>');
-  if (node.tls && node.tls.reality) tags.push('<span class="tag reality">Reality</span>');
+  if (node.transport?.type) {
+    tags.push(`<span class="tag transport">${TRANSPORT_LABELS[node.transport.type] || node.transport.type.toUpperCase()}</span>`);
+  }
+  if (node.tls?.enabled) tags.push('<span class="tag tls">TLS</span>');
+  if (node.tls?.reality) {
+    const pbk = node.tls.reality.publicKey || "";
+    const title = `Reality${pbk ? " · PublicKey: " + pbk.slice(0, 12) + "…" : ""}${node.tls.reality.shortId ? " · ShortId: " + node.tls.reality.shortId : ""}`;
+    tags.push(`<span class="tag reality" title="${escapeHtml(title)}">Reality</span>`);
+  }
+  if (node.tls?.fingerprint) {
+    tags.push(`<span class="tag fingerprint" title="uTLS 指纹伪装">指纹:${escapeHtml(node.tls.fingerprint)}</span>`);
+  }
   if (MIHOMO_ONLY_TYPES.has(node.type)) {
     tags.push('<span class="tag mihomo" title="仅 mihomo(Clash Meta) 内核支持，原版 Clash 无法识别">仅mihomo</span>');
   }
   return tags.join(" ");
+}
+
+/** 节点卡片副标题行：把不适合塞进短标签里的具体参数(SNI/传输层host&path/协议专属参数)拼成一行 */
+function nodeDetailLine(node) {
+  const parts = [];
+  if (node.tls?.sni) parts.push(`SNI: ${node.tls.sni}`);
+  if (node.transport?.host) parts.push(`Host: ${node.transport.host}`);
+  if (node.transport?.path) parts.push(`Path: ${node.transport.path}`);
+  if (node.transport?.serviceName) parts.push(`Service: ${node.transport.serviceName}`);
+  if (node.type === "ss" && node.method) parts.push(`加密: ${node.method}`);
+  if (node.type === "tuic" && node.congestionControl) parts.push(`拥塞控制: ${node.congestionControl}`);
+  if ((node.type === "hysteria" || node.type === "hysteria2") && node.obfs) parts.push(`混淆: ${node.obfs.type}`);
+  if (node.tls?.allowInsecure) parts.push("跳过证书验证");
+  return parts.map(escapeHtml).join(" · ");
 }
 
 // 当前支持导入/导出的全部协议类型，用于渲染筛选标签栏（顺序即展示顺序）
@@ -835,6 +941,7 @@ function renderNodeGrid(filterText) {
         <h3>${escapeHtml(n.name)}</h3>
       </div>
       <p>${escapeHtml(n.server)}:${n.port}</p>
+      ${nodeDetailLine(n) ? `<p class="node-detail">${nodeDetailLine(n)}</p>` : ""}
       <span class="tag">${n.type.toUpperCase()}</span>
       ${tlsTagsFor(n)}
       <label class="checkbox">
