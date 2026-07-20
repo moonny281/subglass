@@ -31,6 +31,7 @@ function errorJson(message: string, status = 400): Response {
 
 /** 校验请求携带的会话 Cookie 是否有效（登录后的短期凭证，而非原始 ADMIN_TOKEN） */
 async function isAuthed(req: Request, env: Env): Promise<boolean> {
+  if (!env.ADMIN_TOKEN) return false;
   const sessionToken = getSessionTokenFromRequest(req);
   if (!sessionToken) return false;
   return verifySessionToken(sessionToken, env.ADMIN_TOKEN);
@@ -41,7 +42,26 @@ async function requireAuth(req: Request, env: Env): Promise<Response | null> {
   return null;
 }
 
+/**
+ * 部署配置自检：ADMIN_TOKEN 和 SUBGLASS_KV 都需要在 Cloudflare Dashboard 里手动配置
+ * (不在 wrangler.toml 里)，很容易漏配。漏配时如果不提前检查，后面代码会因为对
+ * undefined 取属性/调用方法而抛出未捕获异常，最终只会看到一个不知所云的 HTTP 500。
+ * 这里提前检查并给出明确的报错信息，方便定位到底是哪一步没配置。
+ */
+function checkDeployConfig(env: Env): string | null {
+  if (!env.ADMIN_TOKEN) {
+    return "服务端未配置 ADMIN_TOKEN：请在 Cloudflare Dashboard → Worker → Settings → Variables and Secrets 中添加 ADMIN_TOKEN（类型选 Secret/Encrypt），保存后需要重新部署或触发一次新的部署才会生效。";
+  }
+  if (!env.SUBGLASS_KV) {
+    return "服务端未绑定 SUBGLASS_KV：请在 Cloudflare Dashboard → Worker → Settings → Bindings 中添加一个 KV Namespace 绑定，Variable name 必须精确填写 SUBGLASS_KV（大小写和下划线都要对上）。";
+  }
+  return null;
+}
+
 async function handleLogin(req: Request, env: Env): Promise<Response> {
+  const configError = checkDeployConfig(env);
+  if (configError) return errorJson(configError, 500);
+
   const ip = req.headers.get("CF-Connecting-IP") || "unknown";
 
   const gate = await checkLoginRateLimit(env, ip);
@@ -245,52 +265,64 @@ async function handleSubscribe(env: Env, id: string, target: TargetFormat): Prom
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
-    const url = new URL(req.url);
-    const { pathname } = url;
-
-    // --- 公开订阅端点：客户端直接拉取，无需鉴权 ---
-    if (pathname.startsWith("/s/")) {
-      const id = pathname.slice("/s/".length);
-      const target = parseTarget(url.searchParams.get("target"));
-      if (!target) return errorJson("缺少或非法的 target 参数 (clash|singbox|v2ray)", 400);
-      return handleSubscribe(env, id, target);
+    try {
+      return await route(req, env);
+    } catch (e) {
+      // 兜底：任何未被内部 try/catch 捕获的异常（多半是漏配了 ADMIN_TOKEN / SUBGLASS_KV
+      // 绑定，或是访问了 undefined 属性）都在这里统一处理，返回可读的错误信息，
+      // 而不是让 Cloudflare 直接抛出一个不带任何上下文的裸 HTTP 500 页面。
+      console.error("未捕获的异常:", e);
+      return errorJson(`服务端内部错误: ${(e as Error).message || "unknown"}`, 500);
     }
-
-    // --- 展示页公开摘要信息(订阅链接+节点数)，同样无需鉴权，方便二维码分享页直接读取 ---
-    const summaryMatch = pathname.match(/^\/api\/profile\/([^/]+)\/summary$/);
-    if (summaryMatch && req.method === "GET") {
-      return handleSummary(env, summaryMatch[1], url.origin);
-    }
-
-    // --- 登录/登出/会话检查：本身不需要已登录，login内部会校验ADMIN_TOKEN ---
-    if (pathname === "/api/login" && req.method === "POST") return handleLogin(req, env);
-    if (pathname === "/api/logout" && req.method === "POST") return handleLogout(req);
-    if (pathname === "/api/session" && req.method === "GET") return handleSessionCheck(req, env);
-
-    // --- 以下 /api/* 写操作与内部数据读取均需已登录会话 ---
-    if (pathname.startsWith("/api/")) {
-      const authFail = await requireAuth(req, env);
-      if (authFail) return authFail;
-
-      if (pathname === "/api/import" && req.method === "POST") return handleImport(req);
-      if (pathname === "/api/profile" && req.method === "POST") return handleCreateProfile(req, env);
-      if (pathname === "/api/profiles" && req.method === "GET") return handleListProfiles(env);
-
-      const poolMatch = pathname.match(/^\/api\/profile\/([^/]+)\/pool$/);
-      if (poolMatch && req.method === "GET") return handlePool(env, poolMatch[1]);
-
-      const idMatch = pathname.match(/^\/api\/profile\/([^/]+)$/);
-      if (idMatch) {
-        const id = idMatch[1];
-        if (req.method === "GET") return handleGetProfile(env, id);
-        if (req.method === "PUT") return handleUpdateProfile(req, env, id);
-        if (req.method === "DELETE") return handleDeleteProfile(env, id);
-      }
-
-      return errorJson("未找到该API路径", 404);
-    }
-
-    // --- 其余请求交给静态资源(前端页面) ---
-    return env.ASSETS.fetch(req);
   },
 };
+
+async function route(req: Request, env: Env): Promise<Response> {
+  const url = new URL(req.url);
+  const { pathname } = url;
+
+  // --- 公开订阅端点：客户端直接拉取，无需鉴权 ---
+  if (pathname.startsWith("/s/")) {
+    const id = pathname.slice("/s/".length);
+    const target = parseTarget(url.searchParams.get("target"));
+    if (!target) return errorJson("缺少或非法的 target 参数 (clash|singbox|v2ray)", 400);
+    return handleSubscribe(env, id, target);
+  }
+
+  // --- 展示页公开摘要信息(订阅链接+节点数)，同样无需鉴权，方便二维码分享页直接读取 ---
+  const summaryMatch = pathname.match(/^\/api\/profile\/([^/]+)\/summary$/);
+  if (summaryMatch && req.method === "GET") {
+    return handleSummary(env, summaryMatch[1], url.origin);
+  }
+
+  // --- 登录/登出/会话检查：本身不需要已登录，login内部会校验ADMIN_TOKEN ---
+  if (pathname === "/api/login" && req.method === "POST") return handleLogin(req, env);
+  if (pathname === "/api/logout" && req.method === "POST") return handleLogout(req);
+  if (pathname === "/api/session" && req.method === "GET") return handleSessionCheck(req, env);
+
+  // --- 以下 /api/* 写操作与内部数据读取均需已登录会话 ---
+  if (pathname.startsWith("/api/")) {
+    const authFail = await requireAuth(req, env);
+    if (authFail) return authFail;
+
+    if (pathname === "/api/import" && req.method === "POST") return handleImport(req);
+    if (pathname === "/api/profile" && req.method === "POST") return handleCreateProfile(req, env);
+    if (pathname === "/api/profiles" && req.method === "GET") return handleListProfiles(env);
+
+    const poolMatch = pathname.match(/^\/api\/profile\/([^/]+)\/pool$/);
+    if (poolMatch && req.method === "GET") return handlePool(env, poolMatch[1]);
+
+    const idMatch = pathname.match(/^\/api\/profile\/([^/]+)$/);
+    if (idMatch) {
+      const id = idMatch[1];
+      if (req.method === "GET") return handleGetProfile(env, id);
+      if (req.method === "PUT") return handleUpdateProfile(req, env, id);
+      if (req.method === "DELETE") return handleDeleteProfile(env, id);
+    }
+
+    return errorJson("未找到该API路径", 404);
+  }
+
+  // --- 其余请求交给静态资源(前端页面) ---
+  return env.ASSETS.fetch(req);
+}
