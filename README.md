@@ -4,8 +4,11 @@ SubGlass 是一个运行在 Cloudflare Workers 上的订阅管理工具，用于
 
 ## 功能
 
-- 支持导入 Clash/Mihomo YAML、sing-box JSON，以及 vmess / vless / trojan / ss / hysteria / hysteria2 / tuic 分享链接（含整段 base64 编码的订阅内容）
-- 节点解析、去重、筛选与自定义重命名
+- 支持导入 Clash/Mihomo YAML、sing-box JSON，以及 vmess / vless / trojan / ss / hysteria / hysteria2 / tuic / anytls 分享链接（含整段 base64 编码的订阅内容）
+- 导入方式支持两种，都会持久化保存进方案：
+  - **可拉取的 https/http 订阅链接**：每次生成订阅时重新拉取最新内容
+  - **节点原生格式**：直接粘贴分享链接/yaml/json 文本并保存，内容固定不再变化，适合没有订阅链接、只拿到零散节点的场景
+- 节点解析、去重、筛选与自定义重命名，「节点管理」搜索框下方有协议分类标签（VMess/VLess/Trojan/SS/Hysteria/Hysteria2/TUIC/AnyTLS），点击即可按协议类型快速筛选，标签上带实时节点数
 - 「设置」页登录后会展示当前账号下的全部方案，卡片式可视化点击切换/删除，不再需要手动记方案ID
 - 生成 Clash、sing-box、通用 V2Ray 三种订阅格式，均可被客户端持续拉取更新
   - Clash 输出包含"节点选择 / 自动选择 / 故障转移 / 负载均衡"四个策略组
@@ -17,7 +20,9 @@ SubGlass 是一个运行在 Cloudflare Workers 上的订阅管理工具，用于
 
 ## 协议兼容性说明
 
-`hysteria`(v1)、`hysteria2`、`tuic` 这三种协议**只有 mihomo(Clash Meta) 内核支持**，原版 Clash 或其他基于旧内核的客户端无法识别这些节点。前端节点卡片会为这三种协议打上「仅mihomo」标签，生成的 Clash YAML 文件开头也会有对应注释提示。如果你的客户端不是 mihomo 内核，请只勾选 vmess/vless/trojan/ss 节点，或改用 sing-box / 通用订阅格式。
+`hysteria`(v1)、`hysteria2`、`tuic`、`anytls` 这四种协议**只有 mihomo(Clash Meta) 内核支持**，原版 Clash 或其他基于旧内核的客户端无法识别这些节点。前端节点卡片会为这四种协议打上「仅mihomo」标签，生成的 Clash YAML 文件开头也会有对应注释提示。如果你的客户端不是 mihomo 内核，请只勾选 vmess/vless/trojan/ss 节点，或改用 sing-box / 通用订阅格式。
+
+`anytls` 额外说明：sing-box 也原生支持该协议（作为 outbound），且 v2rayN 7.14.3+ 已支持 `anytls://` 分享链接；但 **Xray-core 不支持 anytls**，用 Xray-core 内核的客户端（部分 Shadowrocket/v2rayNG 变体）无法使用。
 
 ## 技术栈
 
@@ -104,6 +109,15 @@ npm test
 ## Logo 与网页图标
 
 当前品牌 Logo 位于 `public/logo.svg`，网页通过 favicon 和 Apple Touch Icon 引用该文件，避免浏览器显示默认地球图标。
+
+## 部署排错
+
+登录接口返回 HTTP 500 时，响应体里会带具体原因（不是裸的 Cloudflare 错误页），最常见的两种：
+
+- `服务端未配置 ADMIN_TOKEN`：去 Cloudflare Dashboard → Worker → Settings → Variables and Secrets 添加 `ADMIN_TOKEN`（类型选 Secret），保存后需要重新部署一次（改配置本身不会自动触发新部署）
+- `服务端未绑定 SUBGLASS_KV`：去 Worker → Settings → Bindings 添加一个 KV Namespace 绑定，Variable name 必须精确为 `SUBGLASS_KV`（大小写、下划线都要对上，`wrangler.toml` 里故意没有声明这个绑定，只能在 Dashboard 手动配）
+
+其他未预期的异常也会被顶层兜底捕获，返回 `{"error": "服务端内部错误: ..."}` 而不是让请求裸奔崩溃；如果看到这类信息，把 `error` 里的具体内容发出来会比较好定位。
 
 ## 安全说明
 
