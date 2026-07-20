@@ -167,4 +167,34 @@ describe("round trip through encodeSingbox", () => {
     expect(out.dns?.servers?.length).toBeGreaterThan(0);
     expect(out.route?.final).toBe("proxy");
   });
+
+  it("chains nodes via detour, first hop has no detour, last hop tag = chain name", () => {
+    const nodes = parseSingbox(JSON.stringify(sampleConfig));
+    const [a, b, c] = nodes;
+    const out = JSON.parse(encodeSingbox(nodes, [{ id: "chain1", name: "我的三跳链", nodeIds: [a.id, b.id, c.id] }]));
+    const byTag = new Map(out.outbounds.map((o: { tag: string }) => [o.tag, o]));
+
+    const hop1 = byTag.get(`我的三跳链 · hop1`) as { detour?: string; server: string } | undefined;
+    const hop2 = byTag.get(`我的三跳链 · hop2`) as { detour?: string; server: string } | undefined;
+    const hop3 = byTag.get(`我的三跳链`) as { detour?: string; server: string } | undefined;
+
+    expect(hop1?.detour).toBeUndefined();
+    expect(hop1?.server).toBe(a.server);
+    expect(hop2?.detour).toBe("我的三跳链 · hop1");
+    expect(hop2?.server).toBe(b.server);
+    expect(hop3?.detour).toBe("我的三跳链 · hop2");
+    expect(hop3?.server).toBe(c.server);
+
+    // 只有代表整条链的最后一跳会暴露给顶层 selector，中间跳不应该出现在可选项里
+    const selector = out.outbounds.find((o: { tag: string }) => o.tag === "proxy");
+    expect(selector.outbounds).toContain("我的三跳链");
+    expect(selector.outbounds).not.toContain("我的三跳链 · hop1");
+  });
+
+  it("skips a chain with fewer than 2 valid members", () => {
+    const nodes = parseSingbox(JSON.stringify(sampleConfig));
+    const out = JSON.parse(encodeSingbox(nodes, [{ id: "chain1", name: "太短的链", nodeIds: [nodes[0].id] }]));
+    const tags = out.outbounds.map((o: { tag: string }) => o.tag);
+    expect(tags).not.toContain("太短的链");
+  });
 });

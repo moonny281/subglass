@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import yaml from "js-yaml";
 import { parseClashYaml, encodeClashYaml } from "./clash";
 
 const sampleYaml = `
@@ -181,5 +182,24 @@ describe("round trip through encodeClashYaml", () => {
     expect(out).toContain("Hy-Node");
     expect(out).toContain("Tuic-Node");
     expect(out).toContain("AnyTLS-Node");
+  });
+
+  it("renders a relay proxy-group for chains, in member order", () => {
+    const nodes = parseClashYaml(sampleYaml);
+    const [a, b, c] = nodes;
+    const out = encodeClashYaml(nodes, [{ id: "chain1", name: "我的三跳链", nodeIds: [a.id, b.id, c.id] }]);
+    const parsed = yaml.load(out) as { "proxy-groups": { name: string; type: string; proxies: string[] }[] };
+    const relay = parsed["proxy-groups"].find((g) => g.name === "我的三跳链");
+    expect(relay?.type).toBe("relay");
+    expect(relay?.proxies).toEqual([a.name, b.name, c.name]);
+    // 链名也应该出现在主选择器里，方便直接选用整条链
+    const selector = parsed["proxy-groups"].find((g) => g.name === "🚀 节点选择");
+    expect(selector?.proxies).toContain("我的三跳链");
+  });
+
+  it("silently drops a chain with fewer than 2 valid members", () => {
+    const nodes = parseClashYaml(sampleYaml);
+    const out = encodeClashYaml(nodes, [{ id: "chain1", name: "太短的链", nodeIds: [nodes[0].id] }]);
+    expect(out).not.toContain("太短的链");
   });
 });

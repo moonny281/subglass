@@ -1,5 +1,5 @@
 import yaml from "js-yaml";
-import type { UNode, TransportType } from "../model";
+import type { UNode, TransportType, ProxyChain } from "../model";
 import { MIHOMO_ONLY_TYPES } from "../model";
 import { nodeIdOf } from "../util";
 
@@ -305,10 +305,23 @@ function fromUNode(n: UNode): ClashProxy {
  * 原版 Clash 或其他基于旧内核的客户端无法识别，会在加载配置时报错或跳过该节点。
  * 如果选中的节点包含这些协议，请确认客户端使用的是 mihomo 内核。
  */
-export function encodeClashYaml(nodes: UNode[]): string {
+export function encodeClashYaml(nodes: UNode[], chains: ProxyChain[] = []): string {
   const proxies = nodes.map(fromUNode);
   const names = proxies.map((p) => p.name);
+  const idToName = new Map(nodes.map((n) => [n.id, n.name]));
   const mihomoOnlyNames = nodes.filter((n) => MIHOMO_ONLY_TYPES.has(n.type)).map((n) => n.name);
+
+  // relay 类型策略组：mihomo/Clash 原生支持"链式代理"，proxies 数组顺序即流量经过顺序，
+  // 第一个是入口(离客户端最近)，最后一个是出口(离目标服务器最近)。引用的都是已存在的普通
+  // proxy 名字，不需要额外复制节点定义。
+  const chainGroups = chains
+    .map((chain) => ({
+      name: chain.name,
+      type: "relay",
+      proxies: chain.nodeIds.map((id) => idToName.get(id)).filter((n): n is string => !!n),
+    }))
+    .filter((g) => g.proxies.length >= 2);
+  const chainNames = chainGroups.map((g) => g.name);
 
   const config = {
     "mixed-port": 7890,
@@ -322,7 +335,7 @@ export function encodeClashYaml(nodes: UNode[]): string {
       {
         name: "🚀 节点选择",
         type: "select",
-        proxies: ["♻️ 自动选择", "🔯 故障转移", "⚖️ 负载均衡", ...names, "DIRECT"],
+        proxies: ["♻️ 自动选择", "🔯 故障转移", "⚖️ 负载均衡", ...chainNames, ...names, "DIRECT"],
       },
       {
         name: "♻️ 自动选择",
@@ -346,6 +359,7 @@ export function encodeClashYaml(nodes: UNode[]): string {
         url: "https://www.gstatic.com/generate_204",
         interval: 300,
       },
+      ...chainGroups,
     ],
     rules: ["MATCH,🚀 节点选择"],
   };

@@ -1,4 +1,4 @@
-import type { UNode, TransportType } from "../model";
+import type { UNode, TransportType, ProxyChain } from "../model";
 import { nodeIdOf } from "../util";
 
 // sing-box outbound 字段参考: https://sing-box.sagernet.org/configuration/outbound/
@@ -25,6 +25,8 @@ interface SbOutbound {
   tag: string;
   server: string;
   server_port: number;
+  /** 链式代理用：拨号本出站服务器前，先经过这个 tag 指向的出站建立隧道 */
+  detour?: string;
   uuid?: string;
   password?: string;
   method?: string; // shadowsocks
@@ -291,9 +293,34 @@ function fromUNode(n: UNode): SbOutbound {
  * 同时保留只提供 outbounds 数组、由客户端自身模板合并 的传统兼容方式的可能——
  * 客户端只需读取本文件的 outbounds 字段即可忽略其余部分。
  */
-export function encodeSingbox(nodes: UNode[]): string {
+export function encodeSingbox(nodes: UNode[], chains: ProxyChain[] = []): string {
   const outbounds = nodes.map(fromUNode);
   const tags = outbounds.map((o) => o.tag);
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+
+  // 链式代理(relay chain)：sing-box 没有 mihomo 那种原生的"relay"策略组，靠给每一跳的
+  // 出站设置 detour 字段实现串联——detour 的语义是"拨号这个出站的服务器之前，先经过
+  // detour 指向的出站建立隧道"。所以链上从第二跳开始，detour = 上一跳的 tag，链的入口
+  // (第一跳)不设置 detour。为了不影响该节点在其他地方被单独选用，链上每一跳都复制出一份
+  // 带独立 tag 的出站配置，不复用原始 tag；只有代表整条链的最后一跳会用链名作为 tag，
+  // 暴露给顶层 selector 供用户选择，中间跳只是内部管道，不会出现在 selector 的选项里。
+  const chainOutbounds: SbOutbound[] = [];
+  const chainSelectorTags: string[] = [];
+  for (const chain of chains) {
+    const members = chain.nodeIds.map((id) => nodeById.get(id)).filter((n): n is UNode => !!n);
+    if (members.length < 2) continue;
+    let prevTag: string | undefined;
+    members.forEach((member, i) => {
+      const isLast = i === members.length - 1;
+      const hopTag = isLast ? chain.name : `${chain.name} · hop${i + 1}`;
+      const hop = fromUNode({ ...member, name: hopTag });
+      if (prevTag) hop.detour = prevTag;
+      chainOutbounds.push(hop);
+      prevTag = hopTag;
+    });
+    chainSelectorTags.push(chain.name);
+  }
+
   const config = {
     log: { level: "info" },
     dns: {
@@ -307,9 +334,10 @@ export function encodeSingbox(nodes: UNode[]): string {
       { type: "mixed", tag: "mixed-in", listen: "127.0.0.1", listen_port: 2080, sniff: true },
     ],
     outbounds: [
-      { type: "selector", tag: "proxy", outbounds: ["auto", ...tags], default: "auto" },
+      { type: "selector", tag: "proxy", outbounds: ["auto", ...chainSelectorTags, ...tags], default: "auto" },
       { type: "urltest", tag: "auto", outbounds: tags, url: "https://www.gstatic.com/generate_204", interval: "5m" },
       ...outbounds,
+      ...chainOutbounds,
       { type: "direct", tag: "direct" },
       { type: "block", tag: "block" },
     ],
