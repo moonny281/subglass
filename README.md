@@ -6,6 +6,7 @@ SubGlass 是一个运行在 Cloudflare Workers 上的订阅管理工具，用于
 
 - 支持导入 Clash/Mihomo YAML、sing-box JSON，以及 vmess / vless / trojan / ss / hysteria / hysteria2 / tuic 分享链接（含整段 base64 编码的订阅内容）
 - 节点解析、去重、筛选与自定义重命名
+- 「设置」页登录后会展示当前账号下的全部方案，卡片式可视化点击切换/删除，不再需要手动记方案ID
 - 生成 Clash、sing-box、通用 V2Ray 三种订阅格式，均可被客户端持续拉取更新
   - Clash 输出包含"节点选择 / 自动选择 / 故障转移 / 负载均衡"四个策略组
   - sing-box 输出是包含本地 `mixed` 入站(127.0.0.1:2080)和最小 DNS 配置的完整可运行 profile，而不只是 outbounds 片段
