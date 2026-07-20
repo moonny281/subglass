@@ -1,4 +1,4 @@
-import type { UNode, TargetFormat } from "../model";
+import type { UNode, TargetFormat, ProxyChain } from "../model";
 import { encodeClashYaml } from "../parsers/clash";
 import { encodeSingbox } from "../parsers/singbox";
 import { encodeV2rayList } from "./toV2ray";
@@ -27,6 +27,7 @@ export function renderSubscription(
   target: TargetFormat,
   profileName: string,
   expiresAtMs?: number | null,
+  chains: ProxyChain[] = [],
 ): RenderResult {
   const common = {
     "Profile-Update-Interval": "24",
@@ -36,7 +37,7 @@ export function renderSubscription(
   switch (target) {
     case "clash":
       return {
-        body: encodeClashYaml(nodes),
+        body: encodeClashYaml(nodes, chains),
         contentType: "text/yaml; charset=utf-8",
         extraHeaders: {
           ...common,
@@ -46,7 +47,7 @@ export function renderSubscription(
       };
     case "singbox":
       return {
-        body: encodeSingbox(nodes),
+        body: encodeSingbox(nodes, chains),
         contentType: "application/json; charset=utf-8",
         extraHeaders: {
           "Profile-Update-Interval": common["Profile-Update-Interval"],
@@ -55,12 +56,14 @@ export function renderSubscription(
         fileExt: "json",
       };
     case "v2ray":
+      // 通用分享链接/base64格式没有"链式代理"的概念，客户端(v2rayN/Shadowrocket等)也不支持，
+      // 这里只输出普通节点列表，链式代理只在 clash / sing-box 里生效。
       return {
         body: encodeV2rayList(nodes),
         contentType: "text/plain; charset=utf-8",
         extraHeaders: {
           ...common,
-          "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(profileName)}.txt`,
+          "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(profileName)}`,
         },
         fileExt: "txt",
       };
