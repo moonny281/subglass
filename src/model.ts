@@ -91,12 +91,20 @@ export interface ImportSource {
 
 export type TargetFormat = "clash" | "singbox" | "v2ray";
 
+export interface ProxyChain {
+  id: string;
+  name: string; // 链名，会作为生成配置里的策略组名/tag，需要和节点名不同以免混淆
+  /** 有序节点 id 列表：第一个是入口(离客户端最近)，最后一个是出口(离目标服务器最近)，长度需 >= 2 */
+  nodeIds: string[];
+}
+
 export interface Profile {
   id: string;
   name: string;
   upstreams: ImportSource[];
   selectedIds: string[]; // 用户勾选的节点 id 列表(跨所有 upstream 合并去重后的池子里选)
   renameMap: Record<string, string>; // nodeId -> 自定义名称
+  chains: ProxyChain[]; // 用户手动编排的链式代理(relay chain)
   targets: TargetFormat[]; // 该 profile 已生成过哪些格式的订阅链接
   createdAt: number;
   updatedAt: number;

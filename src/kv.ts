@@ -12,6 +12,7 @@ const UPSTREAM_CACHE_TTL_SECONDS = 600; // 10分钟，防止上游被高频拉�
  */
 function normalizeProfile(profile: Profile): Profile {
   profile.upstreams = profile.upstreams.map((u) => (u.type ? u : { ...u, type: "url" as const }));
+  if (!profile.chains) profile.chains = [];
   return profile;
 }
 
@@ -57,6 +58,7 @@ export function newProfile(name: string): Profile {
     upstreams: [],
     selectedIds: [],
     renameMap: {},
+    chains: [],
     targets: [],
     createdAt: now,
     updatedAt: now,

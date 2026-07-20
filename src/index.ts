@@ -1,5 +1,5 @@
 import type { Env } from "./env";
-import type { Profile, TargetFormat, ImportSource } from "./model";
+import type { Profile, TargetFormat, ImportSource, ProxyChain } from "./model";
 import { getProfile, putProfile, deleteProfile, listProfiles, newProfile, markTargetGenerated } from "./kv";
 import { buildNodePool, buildSelectedNodes, NoNodesSelectedError } from "./subscription";
 import { renderSubscription } from "./render";
@@ -187,6 +187,10 @@ interface ProfilePatch {
   renameMap?: Record<string, string>;
   /** 到期时间(毫秒时间戳)，传 null 表示清除(永不过期) */
   expiresAt?: number | null;
+  /** 全量替换链列表，用于删除/重新排序某条链 */
+  chains?: ProxyChain[];
+  /** 新增一条链式代理，nodeIds 需要 >= 2 个、按流量经过顺序排列(第一个是入口) */
+  addChain?: { name: string; nodeIds: string[] };
 }
 
 async function handleUpdateProfile(req: Request, env: Env, id: string): Promise<Response> {
@@ -211,6 +215,14 @@ async function handleUpdateProfile(req: Request, env: Env, id: string): Promise<
   if (patch.selectedIds !== undefined) profile.selectedIds = patch.selectedIds;
   if (patch.renameMap !== undefined) profile.renameMap = { ...profile.renameMap, ...patch.renameMap };
   if (patch.expiresAt !== undefined) profile.expiresAt = patch.expiresAt;
+  if (patch.chains !== undefined) profile.chains = patch.chains;
+  if (patch.addChain) {
+    const { name, nodeIds } = patch.addChain;
+    if (!name?.trim()) return errorJson("链名不能为空", 400);
+    if (!nodeIds || nodeIds.length < 2) return errorJson("链式代理至少需要选择 2 个节点", 400);
+    profile.chains = profile.chains || [];
+    profile.chains.push({ id: crypto.randomUUID(), name: name.trim(), nodeIds });
+  }
   profile.updatedAt = Date.now();
 
   await putProfile(env, profile);
@@ -272,8 +284,8 @@ async function handleSubscribe(env: Env, id: string, target: TargetFormat): Prom
   }
 
   try {
-    const nodes = await buildSelectedNodes(env, profile);
-    const result = renderSubscription(nodes, target, profile.name, profile.expiresAt);
+    const { nodes, chains } = await buildSelectedNodes(env, profile);
+    const result = renderSubscription(nodes, target, profile.name, profile.expiresAt, chains);
 
     markTargetGenerated(profile, target);
     await putProfile(env, profile); // 记录该格式已被使用过，供展示页用
