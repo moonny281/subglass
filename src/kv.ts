@@ -60,6 +60,7 @@ export function newProfile(name: string): Profile {
     targets: [],
     createdAt: now,
     updatedAt: now,
+    expiresAt: null,
   };
 }
 

@@ -29,12 +29,24 @@ function errorJson(message: string, status = 400): Response {
   return json({ error: message }, status);
 }
 
-/** 校验请求携带的会话 Cookie 是否有效（登录后的短期凭证，而非原始 ADMIN_TOKEN） */
+/**
+ * 用于签发/校验会话 token 的密钥。两种鉴权方式复用同一套会话机制：
+ * - 配置了用户名+密码：用 "用户名:密码" 拼接后的字符串做密钥
+ * - 只配置了旧版 ADMIN_TOKEN：直接用它做密钥
+ * 两种都没配置时返回 undefined，调用方需要自行处理（视为未鉴权）。
+ */
+function getAuthSecret(env: Env): string | undefined {
+  if (env.ADMIN_USERNAME && env.ADMIN_PASSWORD) return `${env.ADMIN_USERNAME}:${env.ADMIN_PASSWORD}`;
+  return env.ADMIN_TOKEN || undefined;
+}
+
+/** 校验请求携带的会话 Cookie 是否有效（登录后的短期凭证，而非原始密码/令牌） */
 async function isAuthed(req: Request, env: Env): Promise<boolean> {
-  if (!env.ADMIN_TOKEN) return false;
+  const secret = getAuthSecret(env);
+  if (!secret) return false;
   const sessionToken = getSessionTokenFromRequest(req);
   if (!sessionToken) return false;
-  return verifySessionToken(sessionToken, env.ADMIN_TOKEN);
+  return verifySessionToken(sessionToken, secret);
 }
 
 async function requireAuth(req: Request, env: Env): Promise<Response | null> {
@@ -43,14 +55,14 @@ async function requireAuth(req: Request, env: Env): Promise<Response | null> {
 }
 
 /**
- * 部署配置自检：ADMIN_TOKEN 和 SUBGLASS_KV 都需要在 Cloudflare Dashboard 里手动配置
- * (不在 wrangler.toml 里)，很容易漏配。漏配时如果不提前检查，后面代码会因为对
- * undefined 取属性/调用方法而抛出未捕获异常，最终只会看到一个不知所云的 HTTP 500。
+ * 部署配置自检：鉴权凭证(用户名+密码 或 旧版 ADMIN_TOKEN) 和 SUBGLASS_KV 都需要在
+ * Cloudflare Dashboard 里手动配置(不在 wrangler.toml 里)，很容易漏配。漏配时如果不提前检查，
+ * 后面代码会因为对 undefined 取属性/调用方法而抛出未捕获异常，最终只会看到一个不知所云的 HTTP 500。
  * 这里提前检查并给出明确的报错信息，方便定位到底是哪一步没配置。
  */
 function checkDeployConfig(env: Env): string | null {
-  if (!env.ADMIN_TOKEN) {
-    return "服务端未配置 ADMIN_TOKEN：请在 Cloudflare Dashboard → Worker → Settings → Variables and Secrets 中添加 ADMIN_TOKEN（类型选 Secret/Encrypt），保存后需要重新部署或触发一次新的部署才会生效。";
+  if (!getAuthSecret(env)) {
+    return "服务端未配置登录凭证：请在 Cloudflare Dashboard → Worker → Settings → Variables and Secrets 中添加 ADMIN_USERNAME + ADMIN_PASSWORD（推荐，类型选 Secret/Encrypt），或者添加旧版的单一 ADMIN_TOKEN。保存后需要重新部署或触发一次新的部署才会生效。";
   }
   if (!env.SUBGLASS_KV) {
     return "服务端未绑定 SUBGLASS_KV：请在 Cloudflare Dashboard → Worker → Settings → Bindings 中添加一个 KV Namespace 绑定，Variable name 必须精确填写 SUBGLASS_KV（大小写和下划线都要对上）。";
@@ -69,16 +81,24 @@ async function handleLogin(req: Request, env: Env): Promise<Response> {
     return errorJson(`登录尝试过多，请 ${gate.retryAfterSeconds} 秒后再试`, 429);
   }
 
-  const body = (await req.json().catch(() => ({}))) as { token?: string };
-  const provided = body.token || "";
-  // 恒定时间比较，避免通过响应耗时差异被猜出 ADMIN_TOKEN
-  const valid = provided.length > 0 && timingSafeEqual(provided, env.ADMIN_TOKEN);
+  const body = (await req.json().catch(() => ({}))) as { username?: string; password?: string };
+  const username = body.username || "";
+  const password = body.password || "";
+
+  // 恒定时间比较，避免通过响应耗时差异被猜出密码/令牌
+  let valid: boolean;
+  if (env.ADMIN_USERNAME && env.ADMIN_PASSWORD) {
+    valid = timingSafeEqual(username, env.ADMIN_USERNAME) && password.length > 0 && timingSafeEqual(password, env.ADMIN_PASSWORD);
+  } else {
+    // 旧版单令牌模式：用户名留空，密码框直接填令牌
+    valid = password.length > 0 && timingSafeEqual(password, env.ADMIN_TOKEN || "");
+  }
   await recordLoginAttempt(env, ip, valid);
 
   if (!valid) {
-    return errorJson("令牌不正确", 401);
+    return errorJson("用户名或密码不正确", 401);
   }
-  const { token, expiresAt } = await createSessionToken(env.ADMIN_TOKEN);
+  const { token, expiresAt } = await createSessionToken(getAuthSecret(env) as string);
   return json(
     { ok: true, expiresAt },
     200,
@@ -165,6 +185,8 @@ interface ProfilePatch {
   addUpstream?: { label: string; url?: string; content?: string };
   selectedIds?: string[];
   renameMap?: Record<string, string>;
+  /** 到期时间(毫秒时间戳)，传 null 表示清除(永不过期) */
+  expiresAt?: number | null;
 }
 
 async function handleUpdateProfile(req: Request, env: Env, id: string): Promise<Response> {
@@ -188,6 +210,7 @@ async function handleUpdateProfile(req: Request, env: Env, id: string): Promise<
   }
   if (patch.selectedIds !== undefined) profile.selectedIds = patch.selectedIds;
   if (patch.renameMap !== undefined) profile.renameMap = { ...profile.renameMap, ...patch.renameMap };
+  if (patch.expiresAt !== undefined) profile.expiresAt = patch.expiresAt;
   profile.updatedAt = Date.now();
 
   await putProfile(env, profile);
@@ -241,12 +264,19 @@ async function handleSubscribe(env: Env, id: string, target: TargetFormat): Prom
   const profile = await getProfile(env, id);
   if (!profile) return new Response("订阅不存在", { status: 404 });
 
+  if (profile.expiresAt && Date.now() > profile.expiresAt) {
+    return new Response(`该订阅已于 ${new Date(profile.expiresAt).toLocaleString("zh-CN")} 过期，请联系管理员延长有效期`, {
+      status: 410,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
   try {
     const nodes = await buildSelectedNodes(env, profile);
-    const result = renderSubscription(nodes, target, profile.name);
+    const result = renderSubscription(nodes, target, profile.name, profile.expiresAt);
 
     markTargetGenerated(profile, target);
-    await putProfile(env, profile); // 记录该格式已被使用过，供展示页/统计用
+    await putProfile(env, profile); // 记录该格式已被使用过，供展示页用
 
     return new Response(result.body, {
       status: 200,
@@ -268,7 +298,7 @@ export default {
     try {
       return await route(req, env);
     } catch (e) {
-      // 兜底：任何未被内部 try/catch 捕获的异常（多半是漏配了 ADMIN_TOKEN / SUBGLASS_KV
+      // 兜底：任何未被内部 try/catch 捕获的异常（多半是漏配了登录凭证 / SUBGLASS_KV
       // 绑定，或是访问了 undefined 属性）都在这里统一处理，返回可读的错误信息，
       // 而不是让 Cloudflare 直接抛出一个不带任何上下文的裸 HTTP 500 页面。
       console.error("未捕获的异常:", e);
@@ -295,7 +325,7 @@ async function route(req: Request, env: Env): Promise<Response> {
     return handleSummary(env, summaryMatch[1], url.origin);
   }
 
-  // --- 登录/登出/会话检查：本身不需要已登录，login内部会校验ADMIN_TOKEN ---
+  // --- 登录/登出/会话检查：本身不需要已登录，login内部会校验凭证 ---
   if (pathname === "/api/login" && req.method === "POST") return handleLogin(req, env);
   if (pathname === "/api/logout" && req.method === "POST") return handleLogout(req);
   if (pathname === "/api/session" && req.method === "GET") return handleSessionCheck(req, env);

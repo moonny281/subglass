@@ -100,4 +100,6 @@ export interface Profile {
   targets: TargetFormat[]; // 该 profile 已生成过哪些格式的订阅链接
   createdAt: number;
   updatedAt: number;
+  /** 手动设置的到期时间(毫秒时间戳)。为空/undefined 表示永不过期。过期后订阅链接会被拒绝访问 */
+  expiresAt?: number | null;
 }
