@@ -44,6 +44,7 @@ const state = {
   pool: [],
   pendingSelected: new Set(),
   pendingRename: {},
+  profileList: [],
 };
 
 let toastAnim = null;
@@ -458,6 +459,7 @@ document.getElementById("btnLogin").addEventListener("click", async () => {
     document.getElementById("adminToken").value = "";
     renderLoginState();
     toast("登录成功");
+    await loadProfileList();
     if (state.profileId) loadProfile(state.profileId);
   } catch (e) {
     toast("登录失败：" + e.message, true);
@@ -472,7 +474,9 @@ document.getElementById("btnLogout").addEventListener("click", async () => {
   }
   state.authenticated = false;
   state.profile = null;
+  state.profileList = [];
   renderLoginState();
+  renderProfileList();
   toast("已退出登录");
 });
 
@@ -482,7 +486,9 @@ document.getElementById("btnCreateProfile").addEventListener("click", async () =
   try {
     const profile = await api("/api/profile", { method: "POST", body: JSON.stringify({ name }) });
     setProfile(profile);
+    document.getElementById("profileName").value = "";
     toast("方案创建成功");
+    await loadProfileList();
   } catch (e) {
     toast("创建失败：" + e.message, true);
   }
@@ -494,6 +500,96 @@ document.getElementById("btnLoadProfile").addEventListener("click", async () => 
   await loadProfile(id);
 });
 
+/** 拉取当前登录用户名下的全部方案，渲染为可点击卡片列表，替代手动输入ID加载 */
+async function loadProfileList() {
+  if (!state.authenticated) return;
+  try {
+    const result = await api("/api/profiles");
+    state.profileList = result.profiles || [];
+  } catch (e) {
+    toast("方案列表加载失败：" + e.message, true);
+    state.profileList = [];
+  }
+  renderProfileList();
+}
+
+function renderProfileList() {
+  const box = document.getElementById("profileList");
+  const hint = document.getElementById("profileListHint");
+  box.innerHTML = "";
+
+  if (!state.authenticated) {
+    hint.textContent = "登录后可见，点击卡片即可切换到该方案";
+    return;
+  }
+  if (!state.profileList || state.profileList.length === 0) {
+    hint.textContent = "还没有任何方案，创建一个吧";
+    return;
+  }
+  hint.textContent = `共 ${state.profileList.length} 个方案，点击卡片即可切换`;
+
+  const sorted = [...state.profileList].sort((a, b) => b.updatedAt - a.updatedAt);
+  for (const p of sorted) {
+    const isActive = p.id === state.profileId;
+    const row = document.createElement("div");
+    row.className = "profile-item" + (isActive ? " active" : "");
+    row.dataset.id = p.id;
+    row.innerHTML = `
+      <div>
+        <div>${isActive ? '<span class="active-badge">当前</span>' : ""}${escapeHtml(p.name)}</div>
+        <div class="meta">${p.upstreams.length} 个上游 · ${p.selectedIds.length} 个已选节点 · 更新于 ${new Date(p.updatedAt).toLocaleString()}</div>
+      </div>
+      <div class="actions">
+        <button class="btn danger small" data-delete-profile="${p.id}">删除</button>
+      </div>
+    `;
+    row.addEventListener("click", (e) => {
+      if (e.target.closest("[data-delete-profile]")) return; // 删除按钮自己处理，不触发切换
+      if (isActive) return;
+      loadProfile(p.id);
+    });
+    box.appendChild(row);
+  }
+
+  // 删除按钮：同样采用二次确认，避免误触
+  box.querySelectorAll("[data-delete-profile]").forEach((btn) => {
+    const original = btn.textContent;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (btn.dataset.confirming === "1") {
+        deleteProfileFromList(btn.dataset.deleteProfile);
+        return;
+      }
+      btn.dataset.confirming = "1";
+      btn.classList.add("confirming");
+      btn.textContent = "确认删除？";
+      clearTimeout(btn._confirmTimer);
+      btn._confirmTimer = setTimeout(() => {
+        btn.dataset.confirming = "0";
+        btn.classList.remove("confirming");
+        btn.textContent = original;
+      }, 4000);
+    });
+  });
+}
+
+async function deleteProfileFromList(id) {
+  try {
+    await api(`/api/profile/${id}`, { method: "DELETE" });
+    toast("方案已删除");
+    if (id === state.profileId) {
+      state.profile = null;
+      state.profileId = "";
+      localStorage.removeItem(LS_PROFILE);
+      renderSettingsInfo();
+      renderSidebarStats();
+    }
+    await loadProfileList();
+  } catch (e) {
+    toast("删除失败：" + e.message, true);
+  }
+}
+
 function setProfile(profile) {
   state.profile = profile;
   state.profileId = profile.id;
@@ -503,6 +599,7 @@ function setProfile(profile) {
   renderSettingsInfo();
   renderSidebarStats();
   renderUpstreamList();
+  renderProfileList();
 }
 
 async function loadProfile(id) {
@@ -866,8 +963,11 @@ function escapeHtml(str) {
   renderSettingsInfo();
   renderSidebarStats();
   const authed = await checkSession();
-  if (authed && state.profileId) {
-    await loadProfile(state.profileId);
-    await refreshDashboard();
+  if (authed) {
+    await loadProfileList();
+    if (state.profileId) {
+      await loadProfile(state.profileId);
+      await refreshDashboard();
+    }
   }
 })();
