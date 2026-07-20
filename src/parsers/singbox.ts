@@ -41,6 +41,10 @@ interface SbOutbound {
   // tuic
   congestion_control?: string;
   udp_relay_mode?: string;
+  // anytls
+  idle_session_check_interval?: string; // "30s" 形式
+  idle_session_timeout?: string;
+  min_idle_session?: number;
 }
 
 interface SbConfig {
@@ -158,9 +162,31 @@ function toUNode(o: SbOutbound): UNode | null {
         udpRelayMode: o.udp_relay_mode as UNode["udpRelayMode"],
         tls: { ...tlsFrom(o.tls), enabled: true },
       };
+    case "anytls":
+      return {
+        id: nodeIdOf("anytls", o.server, o.server_port, o.password || ""),
+        type: "anytls",
+        name: o.tag,
+        server: o.server,
+        port: o.server_port,
+        password: o.password || "",
+        idleSessionCheckInterval: parseDurationSeconds(o.idle_session_check_interval),
+        idleSessionTimeout: parseDurationSeconds(o.idle_session_timeout),
+        minIdleSession: o.min_idle_session,
+        tls: { ...tlsFrom(o.tls), enabled: true },
+      };
     default:
       return null;
   }
+}
+
+/** sing-box 的时长字段是 "30s" / "1m" 这种字符串，这里只处理常见的 s/m/h 单位，转换为秒数 */
+function parseDurationSeconds(d?: string): number | undefined {
+  if (!d) return undefined;
+  const m = d.match(/^(\d+)(s|m|h)$/);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  return m[2] === "h" ? n * 3600 : m[2] === "m" ? n * 60 : n;
 }
 
 /** 解析 sing-box 完整配置或纯 outbounds 数组 */
@@ -244,6 +270,13 @@ function fromUNode(n: UNode): SbOutbound {
       out.tls = { ...out.tls, enabled: true };
       if (n.congestionControl) out.congestion_control = n.congestionControl;
       if (n.udpRelayMode) out.udp_relay_mode = n.udpRelayMode;
+      break;
+    case "anytls":
+      out.password = n.password;
+      out.tls = { ...out.tls, enabled: true };
+      out.idle_session_check_interval = `${n.idleSessionCheckInterval ?? 30}s`;
+      out.idle_session_timeout = `${n.idleSessionTimeout ?? 30}s`;
+      if (n.minIdleSession !== undefined) out.min_idle_session = n.minIdleSession;
       break;
   }
   return out;

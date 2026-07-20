@@ -195,6 +195,34 @@ describe("tuic", () => {
   });
 });
 
+describe("anytls", () => {
+  const uri = "anytls://mypassword@host.example.com:8443/?sni=host.example.com&insecure=1#AnyTLS-Node";
+
+  it("parses password/sni/insecure", () => {
+    const node = parseUri(uri);
+    expect(node.type).toBe("anytls");
+    expect(node.password).toBe("mypassword");
+    expect(node.server).toBe("host.example.com");
+    expect(node.port).toBe(8443);
+    expect(node.tls?.sni).toBe("host.example.com");
+    expect(node.tls?.allowInsecure).toBe(true);
+  });
+
+  it("defaults to port 443 when omitted", () => {
+    const node = parseUri("anytls://pw@host.example.com/?sni=host.example.com");
+    expect(node.port).toBe(443);
+  });
+
+  it("round-trips", () => {
+    const node = parseUri(uri);
+    const node2 = parseUri(encodeUri(node));
+    expect(node2.password).toBe(node.password);
+    expect(node2.server).toBe(node.server);
+    expect(node2.port).toBe(node.port);
+    expect(node2.tls?.sni).toBe(node.tls?.sni);
+  });
+});
+
 describe("tryParseUri", () => {
   it("returns null for garbage instead of throwing", () => {
     expect(tryParseUri("not-a-uri")).toBeNull();

@@ -57,13 +57,31 @@ proxies:
     password: tuicpass
     congestion-controller: bbr
     udp-relay-mode: native
+  - name: "AnyTLS-Node"
+    type: anytls
+    server: anytls.example.com
+    port: 8443
+    password: anytlspass
+    sni: anytls.example.com
+    idle-session-check-interval: 30
+    idle-session-timeout: 30
+    min-idle-session: 0
+    client-fingerprint: chrome
 `;
 
 describe("parseClashYaml", () => {
-  it("parses all 6 sample proxies", () => {
+  it("parses all 7 sample proxies", () => {
     const nodes = parseClashYaml(sampleYaml);
-    expect(nodes).toHaveLength(6);
-    expect(nodes.map((n) => n.type)).toEqual(["vless", "trojan", "ss", "hysteria2", "hysteria", "tuic"]);
+    expect(nodes).toHaveLength(7);
+    expect(nodes.map((n) => n.type)).toEqual([
+      "vless",
+      "trojan",
+      "ss",
+      "hysteria2",
+      "hysteria",
+      "tuic",
+      "anytls",
+    ]);
   });
 
   it("parses vless reality fields", () => {
@@ -103,6 +121,17 @@ describe("parseClashYaml", () => {
     expect(tuic.password).toBe("tuicpass");
     expect(tuic.congestionControl).toBe("bbr");
     expect(tuic.udpRelayMode).toBe("native");
+  });
+
+  it("parses anytls password/sni/fingerprint/session-pool fields", () => {
+    const nodes = parseClashYaml(sampleYaml);
+    const anytls = nodes.find((n) => n.type === "anytls")!;
+    expect(anytls.password).toBe("anytlspass");
+    expect(anytls.tls?.sni).toBe("anytls.example.com");
+    expect(anytls.tls?.fingerprint).toBe("chrome");
+    expect(anytls.idleSessionCheckInterval).toBe(30);
+    expect(anytls.idleSessionTimeout).toBe(30);
+    expect(anytls.minIdleSession).toBe(0);
   });
 
   it("accepts a bare proxies array (no top-level 'proxies:' key)", () => {
@@ -151,5 +180,6 @@ describe("round trip through encodeClashYaml", () => {
     expect(out).toContain("Hy2-Node");
     expect(out).toContain("Hy-Node");
     expect(out).toContain("Tuic-Node");
+    expect(out).toContain("AnyTLS-Node");
   });
 });

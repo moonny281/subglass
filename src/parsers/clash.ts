@@ -38,6 +38,10 @@ interface ClashProxy {
   // tuic
   "congestion-controller"?: string;
   "udp-relay-mode"?: string;
+  // anytls
+  "idle-session-check-interval"?: number;
+  "idle-session-timeout"?: number;
+  "min-idle-session"?: number;
 }
 
 interface ClashConfig {
@@ -47,7 +51,12 @@ interface ClashConfig {
 function toUNode(p: ClashProxy): UNode | null {
   const sni = p.sni || p.servername;
   const tls: UNode["tls"] | undefined =
-    p.tls || p.type === "trojan" || p.type === "hysteria2" || p.type === "hysteria" || p.type === "tuic"
+    p.tls ||
+    p.type === "trojan" ||
+    p.type === "hysteria2" ||
+    p.type === "hysteria" ||
+    p.type === "tuic" ||
+    p.type === "anytls"
       ? {
           enabled: true,
           sni,
@@ -158,6 +167,19 @@ function toUNode(p: ClashProxy): UNode | null {
         udpRelayMode: p["udp-relay-mode"] as UNode["udpRelayMode"],
         tls: { ...tls, enabled: true },
       };
+    case "anytls":
+      return {
+        id: nodeIdOf("anytls", p.server, p.port, p.password || ""),
+        type: "anytls",
+        name: p.name,
+        server: p.server,
+        port: p.port,
+        password: p.password || "",
+        idleSessionCheckInterval: p["idle-session-check-interval"],
+        idleSessionTimeout: p["idle-session-timeout"],
+        minIdleSession: p["min-idle-session"],
+        tls: { ...tls, enabled: true, fingerprint: p["client-fingerprint"] },
+      };
     default:
       return null; // 不支持的类型直接跳过，不中断整体导入
   }
@@ -262,6 +284,15 @@ function fromUNode(n: UNode): ClashProxy {
       base.tls = true;
       if (n.congestionControl) base["congestion-controller"] = n.congestionControl;
       if (n.udpRelayMode) base["udp-relay-mode"] = n.udpRelayMode;
+      break;
+    case "anytls":
+      base.password = n.password;
+      base.tls = true;
+      base.udp = true;
+      if (n.idleSessionCheckInterval) base["idle-session-check-interval"] = n.idleSessionCheckInterval;
+      if (n.idleSessionTimeout) base["idle-session-timeout"] = n.idleSessionTimeout;
+      if (n.minIdleSession !== undefined) base["min-idle-session"] = n.minIdleSession;
+      if (n.tls?.fingerprint) base["client-fingerprint"] = n.tls.fingerprint;
       break;
   }
   return base;

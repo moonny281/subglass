@@ -62,16 +62,35 @@ const sampleConfig = {
       congestion_control: "bbr",
       udp_relay_mode: "native",
     },
+    {
+      type: "anytls",
+      tag: "AnyTLS-Node",
+      server: "anytls.example.com",
+      server_port: 8443,
+      password: "anytlspass",
+      idle_session_check_interval: "30s",
+      idle_session_timeout: "60s",
+      min_idle_session: 4,
+      tls: { enabled: true, server_name: "anytls.example.com", utls: { enabled: true, fingerprint: "chrome" } },
+    },
     // 应被跳过的非代理出站
     { type: "direct", tag: "direct" },
   ],
 };
 
 describe("parseSingbox", () => {
-  it("parses 6 proxy outbounds and skips direct/block", () => {
+  it("parses 7 proxy outbounds and skips direct/block", () => {
     const nodes = parseSingbox(JSON.stringify(sampleConfig));
-    expect(nodes).toHaveLength(6);
-    expect(nodes.map((n) => n.type)).toEqual(["vless", "trojan", "ss", "hysteria2", "hysteria", "tuic"]);
+    expect(nodes).toHaveLength(7);
+    expect(nodes.map((n) => n.type)).toEqual([
+      "vless",
+      "trojan",
+      "ss",
+      "hysteria2",
+      "hysteria",
+      "tuic",
+      "anytls",
+    ]);
   });
 
   it("parses hysteria(v1) auth_str/obfs/bandwidth", () => {
@@ -81,6 +100,16 @@ describe("parseSingbox", () => {
     expect(hy.obfs).toEqual({ type: "xplus", password: "obfspass" });
     expect(hy.upMbps).toBe(100);
     expect(hy.downMbps).toBe(50);
+  });
+
+  it("parses anytls password/session-pool/fingerprint, converting duration strings to seconds", () => {
+    const nodes = parseSingbox(JSON.stringify(sampleConfig));
+    const anytls = nodes.find((n) => n.type === "anytls")!;
+    expect(anytls.password).toBe("anytlspass");
+    expect(anytls.idleSessionCheckInterval).toBe(30);
+    expect(anytls.idleSessionTimeout).toBe(60);
+    expect(anytls.minIdleSession).toBe(4);
+    expect(anytls.tls?.fingerprint).toBe("chrome");
   });
 
   it("parses tuic uuid/password/congestion_control", () => {
@@ -107,7 +136,7 @@ describe("parseSingbox", () => {
 
   it("accepts a bare outbounds array", () => {
     const nodes = parseSingbox(JSON.stringify(sampleConfig.outbounds));
-    expect(nodes).toHaveLength(6);
+    expect(nodes).toHaveLength(7);
   });
 });
 

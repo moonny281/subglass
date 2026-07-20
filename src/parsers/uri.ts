@@ -422,6 +422,42 @@ function encodeTuic(node: UNode): string {
 }
 
 // ---------------------------------------------------------------------------
+// AnyTLS: anytls://[password@]hostname[:port]/?sni=&insecure=#name  (端口默认443)
+// 参考 https://github.com/anytls/anytls-go/blob/main/docs/uri_scheme.md
+// 注意：Xray-core 不支持该协议，只有 mihomo 与 sing-box 支持
+// ---------------------------------------------------------------------------
+
+function parseAnytls(uri: string): UNode {
+  const u = new URL(uri);
+  const password = decodeURIComponent(u.username);
+  const host = u.hostname;
+  const port = u.port ? Number(u.port) : 443;
+  const q = queryToObject(u.search);
+
+  return {
+    id: nodeIdOf("anytls", host, port, password),
+    type: "anytls",
+    name: extractName(u.hash, `${host}:${port}`),
+    server: host,
+    port,
+    password,
+    tls: {
+      enabled: true,
+      sni: q.sni,
+      allowInsecure: q.insecure === "1",
+    },
+  };
+}
+
+function encodeAnytls(node: UNode): string {
+  const params = new URLSearchParams();
+  if (node.tls?.sni) params.set("sni", node.tls.sni);
+  if (node.tls?.allowInsecure) params.set("insecure", "1");
+  const query = params.toString();
+  return `anytls://${encodeURIComponent(node.password || "")}@${hostForUri(node.server)}:${node.port}/${query ? "?" + query : ""}#${encodeURIComponent(node.name)}`;
+}
+
+// ---------------------------------------------------------------------------
 // 统一入口
 // ---------------------------------------------------------------------------
 
@@ -434,6 +470,7 @@ export function parseUri(uri: string): UNode {
   if (trimmed.startsWith("hysteria2://") || trimmed.startsWith("hy2://")) return parseHysteria2(trimmed);
   if (trimmed.startsWith("hysteria://")) return parseHysteria(trimmed);
   if (trimmed.startsWith("tuic://")) return parseTuic(trimmed);
+  if (trimmed.startsWith("anytls://")) return parseAnytls(trimmed);
   throw new Error(`不支持的分享链接协议: ${trimmed.slice(0, 16)}...`);
 }
 
@@ -453,6 +490,8 @@ export function encodeUri(node: UNode): string {
       return encodeHysteria(node);
     case "tuic":
       return encodeTuic(node);
+    case "anytls":
+      return encodeAnytls(node);
     default:
       throw new Error(`未知节点类型: ${(node as UNode).type}`);
   }
