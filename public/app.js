@@ -46,6 +46,7 @@ const state = {
   pendingRename: {},
   profileList: [],
   protocolFilter: "all",
+  chainBuild: { active: false, order: [] },
 };
 
 let toastAnim = null;
@@ -635,6 +636,7 @@ function setProfile(profile) {
   renderUpstreamList();
   renderProfileList();
   renderProfileLimits();
+  renderChainList();
 }
 
 async function loadProfile(id) {
@@ -934,9 +936,11 @@ function renderNodeGrid(filterText) {
   for (const n of filtered) {
     const checked = state.pendingSelected.has(n.id);
     const customName = state.pendingRename[n.id] || "";
+    const chainIdx = state.chainBuild.order.indexOf(n.id);
     const card = document.createElement("div");
-    card.className = "node" + (checked ? " selected" : "");
+    card.className = "node" + (checked ? " selected" : "") + (chainIdx >= 0 ? " chain-picked" : "");
     card.innerHTML = `
+      ${chainIdx >= 0 ? `<span class="chain-order-badge">${chainIdx + 1}</span>` : ""}
       <div class="node-top">
         <h3>${escapeHtml(n.name)}</h3>
       </div>
@@ -950,6 +954,12 @@ function renderNodeGrid(filterText) {
       </label>
       <input type="text" class="rename-input" data-rename="${n.id}" placeholder="自定义名称（留空使用原名）" value="${escapeHtml(customName)}" />
     `;
+    if (state.chainBuild.active) {
+      card.addEventListener("click", (e) => {
+        if (e.target.closest(".checkbox") || e.target.closest(".rename-input")) return;
+        toggleChainPick(n.id);
+      });
+    }
     grid.appendChild(card);
   }
 
@@ -987,6 +997,7 @@ async function refreshPool() {
     state.pendingRename = Object.assign({}, data.renameMap);
     renderProtocolFilter();
     renderNodeGrid(document.getElementById("nodeSearch").value.trim());
+    renderChainList();
     renderSidebarStats();
   } catch (e) {
     grid.innerHTML = `<div class="empty-hint">拉取失败：${escapeHtml(e.message)}</div>`;
@@ -1021,6 +1032,137 @@ document.getElementById("btnSaveSelection").addEventListener("click", async () =
     toast("保存失败：" + e.message, true);
   }
 });
+
+/* ------------------------------------------------------------------ */
+/* 链式代理 (relay chain)：按点击顺序把任意节点串成一条链并保存               */
+/* ------------------------------------------------------------------ */
+
+function updateChainBuilderBar() {
+  document.getElementById("chainBuilderCount").textContent = `已选 ${state.chainBuild.order.length} 个`;
+}
+
+function toggleChainPick(id) {
+  const order = state.chainBuild.order;
+  const idx = order.indexOf(id);
+  if (idx >= 0) order.splice(idx, 1);
+  else order.push(id);
+  hapticTap();
+  updateChainBuilderBar();
+  renderNodeGrid(document.getElementById("nodeSearch").value.trim());
+}
+
+document.getElementById("btnToggleChainMode").addEventListener("click", () => {
+  state.chainBuild.active = !state.chainBuild.active;
+  if (!state.chainBuild.active) state.chainBuild.order = [];
+  document.getElementById("chainBuilderBar").style.display = state.chainBuild.active ? "block" : "none";
+  document.getElementById("btnToggleChainMode").classList.toggle("active-mode", state.chainBuild.active);
+  updateChainBuilderBar();
+  renderNodeGrid(document.getElementById("nodeSearch").value.trim());
+});
+
+document.getElementById("btnCancelChain").addEventListener("click", () => {
+  state.chainBuild.active = false;
+  state.chainBuild.order = [];
+  document.getElementById("chainBuilderBar").style.display = "none";
+  document.getElementById("btnToggleChainMode").classList.remove("active-mode");
+  document.getElementById("chainName").value = "";
+  renderNodeGrid(document.getElementById("nodeSearch").value.trim());
+});
+
+document.getElementById("btnSaveChain").addEventListener("click", async () => {
+  if (!requireProfile()) return;
+  const name = document.getElementById("chainName").value.trim();
+  if (!name) return toast("请输入链名称", true);
+  if (state.chainBuild.order.length < 2) return toast("链式代理至少需要选择 2 个节点", true);
+
+  try {
+    const profile = await api(`/api/profile/${state.profileId}`, {
+      method: "PUT",
+      body: JSON.stringify({ addChain: { name, nodeIds: state.chainBuild.order } }),
+    });
+    state.profile = profile;
+    state.chainBuild.active = false;
+    state.chainBuild.order = [];
+    document.getElementById("chainBuilderBar").style.display = "none";
+    document.getElementById("btnToggleChainMode").classList.remove("active-mode");
+    document.getElementById("chainName").value = "";
+    renderNodeGrid(document.getElementById("nodeSearch").value.trim());
+    renderChainList();
+    toast(`链「${name}」已保存`);
+  } catch (e) {
+    toast("保存失败：" + e.message, true);
+  }
+});
+
+function renderChainList() {
+  const box = document.getElementById("chainList");
+  const hint = document.getElementById("chainListHint");
+  box.innerHTML = "";
+
+  if (!state.profile) {
+    hint.textContent = "选择或创建一个方案后查看";
+    return;
+  }
+  const chains = state.profile.chains || [];
+  if (chains.length === 0) {
+    hint.textContent = "还没有创建任何链";
+    return;
+  }
+  hint.textContent = `共 ${chains.length} 条链`;
+
+  const nameById = new Map(state.pool.map((n) => [n.id, n.name]));
+  for (const chain of chains) {
+    const path = chain.nodeIds.map((id) => nameById.get(id) || "(节点已失效)").join(" → ");
+    const row = document.createElement("div");
+    row.className = "chain-item";
+    row.innerHTML = `
+      <div>
+        <div>🔗 ${escapeHtml(chain.name)}</div>
+        <div class="chain-path">${escapeHtml(path)}</div>
+      </div>
+      <div class="actions">
+        <button class="btn danger small" data-delete-chain="${chain.id}">删除</button>
+      </div>
+    `;
+    box.appendChild(row);
+  }
+
+  // 破坏性操作用"二次确认"取代原生confirm弹窗：第一次点击进入确认态，几秒内再点一次才真正执行
+  box.querySelectorAll("[data-delete-chain]").forEach((btn) => {
+    const original = btn.textContent;
+    btn.addEventListener("click", () => {
+      if (btn.dataset.confirming === "1") {
+        deleteChain(btn.dataset.deleteChain);
+        return;
+      }
+      btn.dataset.confirming = "1";
+      btn.classList.add("confirming");
+      btn.textContent = "确认删除？";
+      clearTimeout(btn._confirmTimer);
+      btn._confirmTimer = setTimeout(() => {
+        btn.dataset.confirming = "0";
+        btn.classList.remove("confirming");
+        btn.textContent = original;
+      }, 4000);
+    });
+  });
+}
+
+async function deleteChain(chainId) {
+  if (!requireProfile()) return;
+  const remaining = (state.profile.chains || []).filter((c) => c.id !== chainId);
+  try {
+    const profile = await api(`/api/profile/${state.profileId}`, {
+      method: "PUT",
+      body: JSON.stringify({ chains: remaining }),
+    });
+    state.profile = profile;
+    renderChainList();
+    toast("链已删除");
+  } catch (e) {
+    toast("删除失败：" + e.message, true);
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* 我的订阅（展示页：二维码 + 复制）                                      */

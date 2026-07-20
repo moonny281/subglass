@@ -313,6 +313,13 @@ small, .tag, .helper-text, .meta{
 
 .btn.small{ padding:8px 16px; font-size:.8rem; border-radius:12px; }
 
+.btn.active-mode{
+    background:var(--accent-2);
+    color:#08111F;
+    border-color:var(--accent-2);
+}
+.btn.active-mode:hover{ background:var(--accent-2); }
+
 .btn.danger{ background:rgba(239,68,68,.85); }
 .btn.danger:hover{ background:rgba(239,68,68,1); }
 .btn.danger.confirming{
@@ -347,6 +354,60 @@ small, .tag, .helper-text, .meta{
 .node.selected{
     border-color:var(--accent);
     background:rgba(79,142,247,.14);
+}
+
+.node.chain-picked{
+    border-color:var(--accent-2);
+    background:rgba(0,212,255,.12);
+}
+
+.chain-order-badge{
+    position:absolute;
+    top:-8px;
+    left:-8px;
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    background:var(--accent-2);
+    color:#08111F;
+    font-size:.75rem;
+    font-weight:800;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+
+.chain-builder-bar{
+    margin:14px 0;
+    padding:16px 18px;
+    border-radius:18px;
+    background:rgba(0,212,255,.08);
+    border:1.5px solid rgba(0,212,255,.3);
+}
+
+.chain-list{
+    margin-top:12px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.chain-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    padding:14px 16px;
+    border-radius:14px;
+    background:rgba(255,255,255,.06);
+}
+
+.chain-item .chain-path{
+    font-size:.85rem;
+    opacity:.75;
+    margin-top:4px;
+    word-break:break-all;
 }
 
 .node-top{
@@ -708,7 +769,7 @@ small, .tag, .helper-text, .meta{
 }
 
 @media (prefers-contrast: more){
-    .card, .panel, .node, .upstream-item, .link-item, .profile-item{
+    .card, .panel, .node, .upstream-item, .link-item, .profile-item, .chain-item{
         border:1.5px solid rgba(255,255,255,.4);
     }
     .helper-text, .card h3, .node p{ opacity:.8; }
@@ -765,7 +826,7 @@ small, .tag, .helper-text, .meta{
     .card::before,.panel::before,.node::before{ display:none; }
 }
 
-.card,.panel,.node,.btn,.input,.search,.upstream-item,.link-item,.profile-item{
+.card,.panel,.node,.btn,.input,.search,.upstream-item,.link-item,.profile-item,.chain-item{
     transition:transform .32s cubic-bezier(.22,1,.36,1),
       background-color .32s ease, border-color .32s ease,
       box-shadow .32s ease;
@@ -795,9 +856,10 @@ small, .tag, .helper-text, .meta{
     .search{ width:100%; }
     .nodes{ grid-template-columns:1fr; gap:12px; margin-top:14px; }
     .node{ padding:16px; border-radius:18px; }
-    .link-item,.upstream-item,.profile-item{ align-items:stretch; flex-direction:column; padding:14px; }
+    .link-item,.upstream-item,.profile-item,.chain-item{ align-items:stretch; flex-direction:column; padding:14px; }
     .link-item .btn,.upstream-item .btn{ width:100%; }
     .profile-item .actions{ justify-content:flex-end; }
+    .chain-item .actions{ justify-content:flex-end; }
     .qr-wrap{ max-width:100%; }
     .qr-canvas svg{ max-width:100%; height:auto; }
     .mobile-topbar{ padding:12px 14px; min-height:64px; }
@@ -814,7 +876,7 @@ small, .tag, .helper-text, .meta{
 
 @media (prefers-reduced-motion:reduce){
     .tabs-view.active{ animation:none; }
-    .card,.panel,.node,.btn,.input,.search,.upstream-item,.link-item,.profile-item{ transition:none; }
+    .card,.panel,.node,.btn,.input,.search,.upstream-item,.link-item,.profile-item,.chain-item{ transition:none; }
 }
 
 /* Accessible iOS glass: keep the translucent surfaces, but guarantee readable text. */
@@ -835,6 +897,6 @@ body{ color:var(--text-primary); }
 .search::placeholder,.input::placeholder,textarea.input::placeholder{ color:#aebed2; opacity:1; }
 .btn.secondary{ color:var(--text-primary); background:rgba(35,52,76,.9); border-color:rgba(255,255,255,.24); }
 .upstream-item,.link-item{ background:rgba(18,30,49,.82); border:1px solid rgba(255,255,255,.16); }
-.profile-item{ background:rgba(18,30,49,.82); border-color:rgba(255,255,255,.16); }
+.profile-item,.chain-item{ background:rgba(18,30,49,.82); border-color:rgba(255,255,255,.16); }
 .tag{ color:#07111e; }
 .tag.tls{ color:#fff; }

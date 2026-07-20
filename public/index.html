@@ -181,10 +181,34 @@
       <div class="row">
         <button class="btn secondary small" id="btnSelectAll">全选</button>
         <button class="btn secondary small" id="btnSelectNone">全不选</button>
+        <button class="btn secondary small" id="btnToggleChainMode">🔗 链式代理</button>
         <button class="btn small" id="btnSaveSelection" style="flex:0 0 auto;">保存勾选与改名</button>
       </div>
+
+      <div class="chain-builder-bar" id="chainBuilderBar" style="display:none;">
+        <p class="helper-text">
+          按顺序点击下方节点卡片加入链（第一个点的是入口，离你最近；最后一个是出口，离目标网站最近），
+          再点一次可以取消。至少选 2 个。
+        </p>
+        <div class="row" style="margin-top:10px;">
+          <input class="input" id="chainName" placeholder="链名称，如：中转加速" />
+          <span class="helper-text" id="chainBuilderCount" style="flex:0 0 auto;">已选 0 个</span>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button class="btn small" id="btnSaveChain">保存链</button>
+          <button class="btn secondary small" id="btnCancelChain">取消</button>
+        </div>
+      </div>
+
       <div class="nodes" id="nodeGrid"></div>
       <div class="empty-hint" id="nodesEmptyHint" style="display:none;">节点池为空，先去「导入订阅」添加上游链接</div>
+
+      <h3 class="section-title" style="margin-top:24px;">已保存的链式代理</h3>
+      <p class="helper-text" id="chainListHint">还没有创建任何链</p>
+      <div class="chain-list" id="chainList"></div>
+      <p class="helper-text" style="margin-top:10px;">
+        链式代理只在 Clash/mihomo（relay 策略组）和 sing-box（detour 串联）订阅里生效，通用 V2Ray 分享链接格式不支持链式代理，会照常只输出普通节点列表。
+      </p>
     </section>
 
     <!-- 我的订阅 / 展示页 -->
