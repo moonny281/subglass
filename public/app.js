@@ -933,6 +933,8 @@ function renderNodeGrid(filterText) {
     return;
   }
 
+  grid.classList.toggle("chain-mode", state.chainBuild.active);
+
   for (const n of filtered) {
     const checked = state.pendingSelected.has(n.id);
     const customName = state.pendingRename[n.id] || "";
@@ -940,7 +942,7 @@ function renderNodeGrid(filterText) {
     const card = document.createElement("div");
     card.className = "node" + (checked ? " selected" : "") + (chainIdx >= 0 ? " chain-picked" : "");
     card.innerHTML = `
-      ${chainIdx >= 0 ? `<span class="chain-order-badge">${chainIdx + 1}</span>` : ""}
+      <button type="button" class="chain-order-badge${chainIdx >= 0 ? " picked" : ""}" data-chain-pick="${n.id}">${chainIdx >= 0 ? chainIdx + 1 : "+"}</button>
       <div class="node-top">
         <h3>${escapeHtml(n.name)}</h3>
       </div>
@@ -954,12 +956,6 @@ function renderNodeGrid(filterText) {
       </label>
       <input type="text" class="rename-input" data-rename="${n.id}" placeholder="自定义名称（留空使用原名）" value="${escapeHtml(customName)}" />
     `;
-    if (state.chainBuild.active) {
-      card.addEventListener("click", (e) => {
-        if (e.target.closest(".checkbox") || e.target.closest(".rename-input")) return;
-        toggleChainPick(n.id);
-      });
-    }
     grid.appendChild(card);
   }
 
@@ -1050,6 +1046,16 @@ function toggleChainPick(id) {
   updateChainBuilderBar();
   renderNodeGrid(document.getElementById("nodeSearch").value.trim());
 }
+
+// 用事件委托而不是给每张卡片单独挂监听器：nodeGrid 这个容器元素本身在每次 renderNodeGrid()
+// 时只是被 innerHTML="" 清空重建子节点，容器自身不会被替换，所以这里只需要绑定一次，
+// 之后不管卡片怎么重新渲染，点击选取按钮都能被捕获到，不会因为"重新渲染后忘记重新绑定"而失效。
+document.getElementById("nodeGrid").addEventListener("click", (e) => {
+  if (!state.chainBuild.active) return;
+  const btn = e.target.closest(".chain-order-badge");
+  if (!btn) return;
+  toggleChainPick(btn.dataset.chainPick);
+});
 
 document.getElementById("btnToggleChainMode").addEventListener("click", () => {
   state.chainBuild.active = !state.chainBuild.active;
